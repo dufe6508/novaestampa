@@ -1,0 +1,222 @@
+@import "tailwindcss";
+
+/* ============================================================
+   Nova Estampa, tokens
+
+   Especificação completa e justificativas: DESIGN_SYSTEM.md
+   Este arquivo é a fonte da verdade em código.
+
+   As duas regras que explicam todas as outras:
+   1. Preto age, ciano marca. O ciano só aparece no logo, no anel de foco
+      e num número que precisa ser notado. Nunca como fundo de botão.
+   2. O aluno está comprando, a empresa está trabalhando. Mesmos tokens,
+      densidades diferentes.
+
+   A paleta crua do Tailwind foi apagada de propósito (--color-*: initial).
+   Se `bg-slate-200` não compila, é isso: use um token daqui.
+   ============================================================ */
+
+@theme {
+  --color-*: initial;
+
+  --color-white: #ffffff;
+  --color-black: #000000;
+  --color-transparent: transparent;
+  --color-current: currentColor;
+
+  /* superfície */
+  --color-ground: #f1f4f4;
+  --color-surface: #ffffff;
+  --color-surface-2: #edf0f0;
+
+  /* texto, e `ink` é também a cor de ação */
+  --color-ink: #0e1416;
+  --color-ink-2: #4a5658;
+  --color-muted: #7c878a;
+  --color-faint: #b7c0c1;
+
+  /* traço */
+  --color-line: #e4e8e8;
+  --color-line-strong: #d3dada;
+
+  /* marca, uso restrito */
+  --color-brand: #0fa8bc;
+  --color-brand-deep: #0c8a9b;
+  --color-brand-soft: #e4f4f6;
+
+  /* estado, nunca informa sozinho, sempre acompanha texto */
+  --color-success: #0e7c4a;
+  --color-success-soft: #e7f4ee;
+  --color-warning: #8a5a00;
+  --color-warning-soft: #fff4e2;
+  --color-danger: #b13326;
+  --color-danger-soft: #fcebe9;
+
+  /* bordô da peça, só dentro do preview da estampa */
+  --color-bordo: #7b2233;
+
+  /* forma, escala em dobro */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+
+  /* elevação. Card em lista é borda, não sombra. Sombra é neutra, sem cor. */
+  --shadow-card: 0 1px 2px rgb(14 20 22 / 0.05);
+  --shadow-lift: 0 2px 4px rgb(14 20 22 / 0.06), 0 12px 28px -14px rgb(14 20 22 / 0.2);
+  /* card sozinho no meio da tela: precisa flutuar, senão some no fundo */
+  --shadow-float:
+    0 1px 2px rgb(14 20 22 / 0.05), 0 6px 14px -6px rgb(14 20 22 / 0.1),
+    0 28px 56px -28px rgb(14 20 22 / 0.26);
+
+  /* movimento, curva única: sai rápido, chega devagar */
+  --ease-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-slow: 280ms;
+
+  /* tipografia, Geist. Mono só no código da turma. */
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  /* escala tipográfica: tamanho / altura de linha */
+  --text-caption: 0.78125rem;
+  --text-caption--line-height: 1.45;
+  --text-body-sm: 0.84375rem;
+  --text-body-sm--line-height: 1.5;
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.55;
+  --text-h3: 1.0625rem;
+  --text-h3--line-height: 1.35;
+  --text-num: 1.3125rem;
+  --text-num--line-height: 1.1;
+  --text-h2: 1.3125rem;
+  --text-h2--line-height: 1.25;
+  --text-h1: 1.625rem;
+  --text-h1--line-height: 1.15;
+  --text-num-lg: 1.75rem;
+  --text-num-lg--line-height: 1.05;
+  --text-display: 2rem;
+  --text-display--line-height: 1.1;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background: var(--color-ground);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Dinheiro e contagem sempre alinham em coluna. Sem isso o valor
+     dança quando muda, e o painel parece amador. */
+  table,
+  [data-nums] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Único lugar onde o ciano aparece sozinho, de propósito:
+     quem navega por teclado precisa achar rápido. */
+  :focus-visible {
+    outline: 2px solid var(--color-brand-deep);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+    font-weight: 600;
+  }
+
+  h1 {
+    font-size: var(--text-h1);
+    letter-spacing: -0.02em;
+  }
+  h2 {
+    font-size: var(--text-h2);
+    letter-spacing: -0.018em;
+  }
+  h3 {
+    font-size: var(--text-h3);
+    letter-spacing: -0.012em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* ------------------------------------------------------------
+   Movimento
+
+   Só entrada de conteúdo e feedback de toque. Nada em loop, nada decorativo.
+   A regra global de `prefers-reduced-motion` lá em cima zera a duração destas
+   animações também, e `both` garante que o elemento termine visível.
+   ------------------------------------------------------------ */
+
+@keyframes ne-sobe {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes ne-surge {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Entrada padrão de bloco. Em lista, quem usa passa `--atraso` por item. */
+@utility entra {
+  animation: ne-sobe var(--duration-slow) var(--ease-soft) var(--atraso, 0ms) both;
+}
+
+/* Entrada de coisa que aparece por cima, tipo comprovante e card solto. */
+@utility surge {
+  animation: ne-surge var(--duration-base) var(--ease-soft) both;
+}
+
+/* Carrossel e trilha de miniaturas: a barra de rolagem do sistema atravessando
+   a foto estraga o enquadramento. O conteúdo continua rolável por dedo,
+   trackpad, setas e teclado. */
+@utility sem-barra {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@utility label {
+  font-size: 0.6875rem;
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
