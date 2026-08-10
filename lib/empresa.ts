@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { notFound } from "next/navigation";
-import { db } from "./supabase";
+import { db, mensagem } from "./supabase";
 import { sessao } from "./sessao";
 
 /**
@@ -62,7 +62,7 @@ export async function concederAcesso(perfilId: string, codigo: string) {
     p_codigo: codigo,
   });
 
-  if (error) return { erro: error.message || "Não consegui validar agora." };
+  if (error) return { erro: mensagem(error) };
   if (data !== true) return { erro: "Código incorreto." };
   return {};
 }

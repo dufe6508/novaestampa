@@ -232,10 +232,13 @@ Registro manual usa `provider = 'manual'`. Status de pagamento é **derivado**, 
 - Nome da estampa digitado **duas vezes** (confirmação tipo senha). **Decidido.**
 - **Mais** um preview visual do produto com o nome aplicado. **Como** será feito (SVG, HTML,
   estilo de estampa, fonte) fica para depois, parte da etapa de UI.
-- Normalização do nome: **`trim` e colapso de espaços duplos, só isso.** A caixa alta
-  automática que estava aqui **caiu**, a foto das costas da polo mostra o nome bordado como
-  `Fernandes`, não `FERNANDES`. Forçar maiúscula produziria uma peça diferente da que o aluno
-  viu na tela.
+- Normalização do nome: **`trim`, colapso de espaços duplos e inicial maiúscula.** A caixa
+  alta automática que estava aqui **caiu**, a foto das costas da polo mostra o nome bordado
+  como `Fernandes`, não `FERNANDES`. Forçar maiúscula produziria uma peça diferente da que o
+  aluno viu na tela. Subir só a primeira letra de cada palavra arruma o `fernandes` digitado
+  no celular sem esse efeito, mantém partícula minúscula ("Ana de Sá") e não mexe no resto
+  das letras, para não estragar `MacHado`. Vale para o nome da conta e para o da estampa,
+  no navegador e no servidor (`capitalizarNome`, em `lib/formato.ts`).
 - **Limite de caracteres suspenso** (09/08/2026). `max_caracteres_nome` está em 60, que é o
   teto do schema, e a tela não mostra contador. Volta quando a produção informar o máximo
   real do bordado. Enquanto isso o preview comprime o traço para o nome caber na peça.

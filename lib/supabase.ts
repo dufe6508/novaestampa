@@ -58,3 +58,21 @@ export function imagemUrl(caminho: string) {
   return `${url()}/storage/v1/object/public/produtos/${caminho}`;
 }
 
+/**
+ * Erro do banco virando frase para o aluno.
+ *
+ * Só o que as nossas funções levantam com `raise exception` chega em português
+ * e escrito para quem lê ("O prazo de pedidos terminou em 12/08"). Esse é o
+ * código `P0001`. Todo o resto vem do Postgres ou da rede, em inglês e falando
+ * de tabela e constraint ("duplicate key value violates unique constraint"),
+ * que não ajuda o aluno e ainda conta como o banco é por dentro.
+ *
+ * Então: `P0001` passa, o resto vira uma frase única e vai para o log do
+ * servidor, onde é útil.
+ */
+export function mensagem(erro: { message?: string; code?: string } | null): string {
+  const m = erro?.message?.trim();
+  if (erro?.code === "P0001" && m) return m;
+  if (m) console.error("[banco]", erro?.code, m);
+  return "Não consegui completar agora. Tente de novo em alguns segundos.";
+}

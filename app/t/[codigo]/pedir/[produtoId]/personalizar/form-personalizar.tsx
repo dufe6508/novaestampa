@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Alerta, Botao, Campo, Tamanhos } from "@/components/campos";
 import { Estampa } from "@/components/estampa";
-import { tamanhoLegivel } from "@/lib/formato";
+import { capitalizarNome, tamanhoLegivel } from "@/lib/formato";
 
 /**
  * Tamanho e nome do bordado.
@@ -14,15 +14,17 @@ import { tamanhoLegivel } from "@/lib/formato";
  * errado. Colar é bloqueado no segundo campo, senão a conferência não confere
  * nada.
  *
- * Normalização: só `trim` e colapso de espaço duplo. Nada de caixa alta
- * automática, a peça real sai "Fernandes", não "FERNANDES", e forçar maiúscula
- * entregaria peça diferente da que o aluno viu na tela.
+ * Normalização: `trim`, colapso de espaço duplo e inicial maiúscula. Nada de
+ * caixa alta automática, a peça real sai "Fernandes", não "FERNANDES", e
+ * forçar maiúscula entregaria peça diferente da que o aluno viu na tela. Subir
+ * só a inicial arruma "fernandes" digitado no celular sem esse efeito, e o
+ * preview mostra o resultado enquanto ele digita.
  */
 
 type Peca = { produtoId: string; nome: string; tamanhos: string[] };
 type Prefill = { tamanho?: string; nome: string };
 
-const limpar = (s: string) => s.trim().replace(/\s+/g, " ");
+const limpar = capitalizarNome;
 
 export function FormPersonalizar({
   codigo,

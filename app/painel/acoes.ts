@@ -2,9 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { db } from "@/lib/supabase";
+import { db, mensagem } from "@/lib/supabase";
 import { concederAcesso } from "@/lib/empresa";
 import { sessao } from "@/lib/sessao";
+import { capitalizarFrase, capitalizarNome } from "@/lib/formato";
 
 /**
  * Escrita da área de gestão.
@@ -40,10 +41,8 @@ async function semSessao() {
   return s?.id ? null : "Sessão expirada. Entre de novo para continuar.";
 }
 
-function erro(e: { message?: string } | null) {
-  const m = e?.message?.trim();
-  return m || "Não consegui completar agora. Tente de novo em alguns segundos.";
-}
+/** Mesma regra do lado do aluno: só a mensagem que nós escrevemos aparece. */
+const erro = mensagem;
 
 /**
  * Revalida tudo. Uma baixa de pagamento muda número em cinco telas ao mesmo
@@ -183,7 +182,7 @@ export async function liberarProducao(_estado: string | null, dados: FormData) {
   if (barrado) return barrado;
 
   const pedidoId = String(dados.get("pedido_id") ?? "");
-  const motivo = String(dados.get("motivo") ?? "").trim();
+  const motivo = capitalizarFrase(String(dados.get("motivo") ?? ""));
 
   if (!pedidoId) return "Pedido não informado.";
   if (!motivo) return "Escreva o motivo da liberação sem pagamento.";
@@ -229,9 +228,7 @@ export async function editarItem(_estado: string | null, dados: FormData) {
 
   const itemId = String(dados.get("item_id") ?? "");
   const tamanho = String(dados.get("tamanho") ?? "").trim();
-  const nome = String(dados.get("nome_estampa") ?? "")
-    .trim()
-    .replace(/\s+/g, " ");
+  const nome = capitalizarNome(String(dados.get("nome_estampa") ?? ""));
 
   if (!itemId) return "Peça não informada.";
   if (!tamanho) return "Escolha um tamanho.";

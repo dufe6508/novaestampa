@@ -60,3 +60,40 @@ export function nomeCompletoValido(valor: string) {
 }
 
 export const PADRAO_NOME_COMPLETO = "\\s*\\S{2,}(\\s+\\S+)*\\s+\\S{2,}\\s*";
+
+/**
+ * Nome próprio com inicial maiúscula.
+ *
+ * Quem digita no celular digita "joão fernandes", e o nome aparece assim na
+ * lista da produção, na peça e no painel. Subir a inicial arruma isso sem
+ * mexer no resto do que a pessoa escreveu: `trim`, colapso de espaço duplo e
+ * primeira letra de cada palavra.
+ *
+ * O resto das letras fica como veio, de propósito. Baixar tudo estragaria
+ * "MacHado" e "LG"; subir tudo entregaria "FERNANDES", peça diferente da que
+ * o aluno viu na tela, que é a decisão registrada no CLAUDE.md §3.5.
+ *
+ * Partícula de ligação continua minúscula, porque em nome brasileiro é assim
+ * que se escreve: "Ana de Sá", não "Ana De Sá".
+ */
+const PARTICULAS = new Set(["de", "da", "do", "das", "dos", "e", "di", "du", "van", "von"]);
+
+export function capitalizarNome(valor: string) {
+  return valor
+    .trim()
+    .replace(/\s+/g, " ")
+    .split(" ")
+    .map((p, i) =>
+      i > 0 && PARTICULAS.has(p.toLowerCase()) ? p.toLowerCase() : maiusculaInicial(p),
+    )
+    .join(" ");
+}
+
+/** Frase livre, como o motivo de uma liberação. Só a primeira letra. */
+export function capitalizarFrase(valor: string) {
+  return maiusculaInicial(valor.trim().replace(/\s+/g, " "));
+}
+
+function maiusculaInicial(s: string) {
+  return s ? s[0].toUpperCase() + s.slice(1) : s;
+}

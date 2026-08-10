@@ -9,6 +9,7 @@ import {
   tamanhoLegivel,
 } from "@/lib/aluno";
 import { sessao } from "@/lib/sessao";
+import { capitalizarNome } from "@/lib/formato";
 import { imagemUrl, reais } from "@/lib/supabase";
 import { Linha } from "@/components/campos";
 import { Estampa } from "@/components/estampa";
@@ -95,7 +96,7 @@ export default async function Revisao({
       pecas.map((p) => ({
         produto_id: p.produtoId,
         tamanho: p.tamanho,
-        nome_estampa: p.estampa,
+        nome_estampa: capitalizarNome(p.estampa),
       })),
     );
     if (r.erro) return r.erro;

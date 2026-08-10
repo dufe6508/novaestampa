@@ -18,6 +18,8 @@ execFileSync(
 const {
   PADRAO_NOME_COMPLETO,
   PADRAO_TELEFONE,
+  capitalizarFrase,
+  capitalizarNome,
   mascaraTelefone,
   nomeCompletoValido,
   telefoneValido,
@@ -69,6 +71,26 @@ for (const nome of ["Maria Fernandes", "Ana de Sá", "  Maria Fernandes  "]) {
 }
 for (const nome of ["Maria", "Maria F", "M"]) {
   assert.equal(casa(PADRAO_NOME_COMPLETO, nome), nomeCompletoValido(nome), nome);
+}
+
+// Inicial maiúscula, sem estragar o resto do que a pessoa escreveu.
+assert.equal(capitalizarNome("joão fernandes"), "João Fernandes");
+assert.equal(capitalizarNome("  maria   das  dores "), "Maria das Dores");
+assert.equal(capitalizarNome("ana de sá"), "Ana de Sá");
+assert.equal(capitalizarNome("MacHado"), "MacHado");
+assert.equal(capitalizarNome("FERNANDES"), "FERNANDES");
+assert.equal(capitalizarNome("de souza"), "De Souza");
+assert.equal(capitalizarNome(""), "");
+
+assert.equal(
+  capitalizarFrase("  acordo com   a comissão "),
+  "Acordo com a comissão",
+);
+assert.equal(capitalizarFrase(""), "");
+
+// Capitalizar não pode transformar nome válido em inválido, nem o contrário.
+for (const nome of ["joão fernandes", "ana de sá", "maria"]) {
+  assert.equal(nomeCompletoValido(capitalizarNome(nome)), nomeCompletoValido(nome), nome);
 }
 
 console.log("formato: ok");

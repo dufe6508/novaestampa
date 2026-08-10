@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { publico } from "./supabase";
+import { mensagem, publico } from "./supabase";
 
 export { reais, tamanhoLegivel } from "./formato";
 
@@ -138,17 +138,6 @@ export const meusPedidos = cache(
 /** Soma do que o aluno ainda deve na turma. Alimenta o badge da Carteira. */
 export function totalEmAberto(pedidos: Pedido[]) {
   return pedidos.reduce((s, p) => s + p.saldo, 0);
-}
-
-/**
- * O erro do Postgres é escrito para o aluno ler ("O prazo de pedidos terminou
- * em 23/09/2026"), então ele sobe direto para a tela em vez de virar
- * "erro inesperado". Só o que não tem mensagem vira texto genérico.
- */
-function mensagem(erro: { message?: string } | null): string {
-  const m = erro?.message?.trim();
-  if (!m) return "Não consegui completar agora. Tente de novo em alguns segundos.";
-  return m;
 }
 
 export async function entrar(nome: string, email: string, telefone: string | null) {

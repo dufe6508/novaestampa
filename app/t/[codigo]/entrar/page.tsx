@@ -1,7 +1,12 @@
 import { notFound, redirect } from "next/navigation";
 import { buscarTurma, entrar, meusPedidos, totalEmAberto } from "@/lib/aluno";
 import { abrirSessao, sessao } from "@/lib/sessao";
-import { mascaraTelefone, nomeCompletoValido, telefoneValido } from "@/lib/formato";
+import {
+  capitalizarNome,
+  mascaraTelefone,
+  nomeCompletoValido,
+  telefoneValido,
+} from "@/lib/formato";
 import { Marca } from "@/components/logo";
 import { FormEntrar } from "./form-entrar";
 
@@ -32,7 +37,7 @@ export default async function EntrarNaTurma({
   async function acao(_estado: string | null, dados: FormData) {
     "use server";
 
-    const nome = String(dados.get("nome") ?? "").trim();
+    const nome = capitalizarNome(String(dados.get("nome") ?? ""));
     const email = String(dados.get("email") ?? "").trim();
     const telefone = String(dados.get("telefone") ?? "").trim();
 

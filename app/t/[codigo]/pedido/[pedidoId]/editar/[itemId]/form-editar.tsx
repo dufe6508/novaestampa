@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { Alerta, Botao, Campo, Tamanhos } from "@/components/campos";
 import { Estampa } from "@/components/estampa";
+import { capitalizarNome } from "@/lib/formato";
 
 /**
  * Edição também pede o nome duas vezes.
@@ -12,7 +13,7 @@ import { Estampa } from "@/components/estampa";
  * menor que o de uma peça bordada errada. Só pede a confirmação se o nome mudou.
  */
 
-const limpar = (s: string) => s.trim().replace(/\s+/g, " ");
+const limpar = capitalizarNome;
 
 export function FormEditar({
   acao,

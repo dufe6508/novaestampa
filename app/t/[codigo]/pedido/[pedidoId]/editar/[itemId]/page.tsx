@@ -9,6 +9,7 @@ import {
   tamanhoLegivel,
 } from "@/lib/aluno";
 import { sessao } from "@/lib/sessao";
+import { capitalizarNome } from "@/lib/formato";
 import { Alerta, BotaoLink } from "@/components/campos";
 import { Voltar } from "@/components/icones";
 import { FormEditar } from "./form-editar";
@@ -50,7 +51,7 @@ export default async function Editar({
       aluno!.id,
       itemId,
       String(dados.get("t") ?? ""),
-      String(dados.get("nome") ?? ""),
+      capitalizarNome(String(dados.get("nome") ?? "")),
     );
     if (r.erro) return r.erro;
 
