@@ -276,6 +276,13 @@ from parcela p
 left join pagamento g on g.parcela_id = p.id
 group by p.id;
 
+-- Pedido com o dinheiro somado.
+--
+-- A agregação é lateral, por pedido, e não um join com vw_parcela. Com a view
+-- agregada no meio, o Postgres não conseguia empurrar `where grupo_id = ...`
+-- para baixo: abrir uma turma varria parcela e pagamento inteiras e só depois
+-- descartava o que não era da turma. O custo crescia com o banco, não com a
+-- turma. Assim o filtro desce até `pedido`, e o resto vem pelos índices.
 create view vw_pedido with (security_invoker = on) as
 select
   ped.id,
@@ -293,25 +300,44 @@ select
   ped.aluno_nome,
   ped.aluno_telefone,
 
-  coalesce(sum(vp.pago_centavos), 0)::integer                    as pago_centavos,
-  (ped.valor_centavos - coalesce(sum(vp.pago_centavos), 0))::integer as saldo_centavos,
+  r.pago_centavos,
+  (ped.valor_centavos - r.pago_centavos)::integer as saldo_centavos,
 
   case
-    when coalesce(sum(vp.pago_centavos), 0) >= ped.valor_centavos then 'pago'
-    when coalesce(sum(vp.pago_centavos), 0) > 0                   then 'parcial'
-    when bool_or(vp.status = 'atrasado')                          then 'atrasado'
+    when r.pago_centavos >= ped.valor_centavos then 'pago'
+    when r.tem_atraso                          then 'atrasado'
+    when r.pago_centavos > 0                   then 'parcial'
     else 'pendente'
   end as status_pagamento,
 
   -- entrada quitada?  → é o que libera produção
-  coalesce(bool_and(vp.status = 'pago') filter (where vp.eh_entrada), false) as entrada_paga,
+  r.entrada_paga,
 
-  (ped.producao_forcada
-   or coalesce(bool_and(vp.status = 'pago') filter (where vp.eh_entrada), false)) as pode_produzir
+  (ped.producao_forcada or r.entrada_paga) as pode_produzir
 
 from pedido ped
-left join vw_parcela vp on vp.pedido_id = ped.id
-group by ped.id;
+left join lateral (
+  select
+    coalesce(sum(p.pago), 0)::integer                                       as pago_centavos,
+    coalesce(bool_or(p.status = 'atrasado'), false)                         as tem_atraso,
+    coalesce(bool_and(p.status = 'pago') filter (where p.eh_entrada), false) as entrada_paga
+  from (
+    -- Uma linha por parcela do pedido, com o mesmo status que vw_parcela dá.
+    select
+      pa.eh_entrada,
+      coalesce(sum(g.valor_centavos), 0)::integer as pago,
+      case
+        when coalesce(sum(g.valor_centavos), 0) >= pa.valor_centavos then 'pago'
+        when pa.vencimento is not null and pa.vencimento < current_date then 'atrasado'
+        when coalesce(sum(g.valor_centavos), 0) > 0 then 'parcial'
+        else 'pendente'
+      end as status
+    from parcela pa
+    left join pagamento g on g.parcela_id = pa.id
+    where pa.pedido_id = ped.id
+    group by pa.id
+  ) p
+) r on true;
 
 -- Lista de produção: uma linha por peça liberada.
 create view vw_producao with (security_invoker = on) as
@@ -349,18 +375,28 @@ from vw_producao
 group by grupo_id, grupo_nome, campanha_id, produto, tamanho;
 
 -- Adesão por grupo · depende de grupo.alunos_esperados.
+--
+-- Liga direto em vw_pedido, que já carrega grupo_id. A versão anterior passava
+-- por `pedido` só para chegar em vw_pedido pelo id, e precisava de
+-- `count(distinct)` para desfazer as duplicatas que ela mesma criava.
 create view vw_grupo_resumo with (security_invoker = on) as
 select
   g.id, g.campanha_id, g.nome, g.codigo, g.alunos_esperados,
-  count(distinct v.id) filter (where v.status = 'ativo')         as pedidos,
+  count(v.id)                                    as pedidos,
   -- conta por nome, não por perfil: pedido lançado pelo admin não tem conta
-  count(distinct v.aluno_nome) filter (where v.status = 'ativo') as alunos_com_pedido,
-  coalesce(sum(v.valor_centavos) filter (where v.status = 'ativo'), 0)::integer as vendido_centavos,
-  coalesce(sum(v.pago_centavos)  filter (where v.status = 'ativo'), 0)::integer as recebido_centavos,
-  coalesce(sum(v.saldo_centavos) filter (where v.status = 'ativo'), 0)::integer as a_receber_centavos
+  count(distinct v.aluno_nome)                   as alunos_com_pedido,
+  coalesce(sum(v.valor_centavos), 0)::integer    as vendido_centavos,
+  coalesce(sum(v.pago_centavos), 0)::integer     as recebido_centavos,
+  coalesce(sum(v.saldo_centavos), 0)::integer    as a_receber_centavos,
+  coalesce(sum(v.saldo_centavos) filter (where v.status_pagamento = 'atrasado'), 0)::integer
+                                                 as atrasado_centavos,
+  count(*) filter (where v.status_pagamento = 'atrasado')::integer as pedidos_atrasados,
+  count(*) filter (where v.status_pagamento = 'parcial')::integer  as pedidos_parciais,
+  count(*) filter (where v.status_pagamento = 'pendente')::integer as pedidos_sem_pagamento,
+  count(*) filter (where v.status_pagamento = 'pago')::integer     as pedidos_pagos,
+  count(*) filter (where v.pode_produzir)::integer                 as pedidos_liberados
 from grupo g
-left join pedido ped on ped.grupo_id = g.id
-left join vw_pedido v on v.id = ped.id
+left join vw_pedido v on v.grupo_id = g.id and v.status = 'ativo'
 group by g.id;
 
 -- ============================================================

@@ -1,4 +1,6 @@
-import Link from "next/link";
+"use client";
+
+import { LinkRapido } from "./link-rapido";
 import {
   cancelarPedido,
   estornarPagamento,
@@ -9,11 +11,10 @@ import {
 import {
   data,
   dataHora,
-  listarParcelas,
-  tamanhoLegivel,
+  type ParcelaPainel,
   type PedidoPainel,
-} from "@/lib/painel";
-import { reais } from "@/lib/formato";
+} from "@/lib/planilha";
+import { reais, tamanhoLegivel } from "@/lib/formato";
 import { FormAcao } from "./form-acao";
 import { Escolha } from "./escolha";
 import { SeloPagamento, SeloProducao } from "./selo";
@@ -25,6 +26,12 @@ import { Seta, X } from "./icones";
  * Ser um parâmetro de URL em vez de estado de componente resolve três coisas de
  * graça: o botão voltar fecha, o link pode ser mandado para outra pessoa, e a
  * lista atrás não perde filtro nem rolagem.
+ *
+ * As parcelas chegam prontas, por propriedade. Antes eram buscadas aqui, e
+ * abrir um pedido custava duas consultas ao banco antes de qualquer coisa
+ * aparecer na tela: o painel só surgia quando a última voltasse. `carregarTurma`
+ * já traz parcelas e baixas de todos os pedidos da turma, então abrir agora não
+ * custa rede nenhuma.
  *
  * Denso, mas não apertado. A primeira versão compacta demais tinha ficado
  * ilegível: tudo em 11px e sem separação, o olho não achava onde uma coisa
@@ -122,28 +129,28 @@ function Abre({
 /** Ordinal da parcela. "1ª" diz de quem é o status; "Parcela" sozinho não. */
 const ordinal = (n: number) => `${n}ª`;
 
-export async function DetalhePedido({
+export function DetalhePedido({
   pedido,
+  parcelas,
   turma,
   campanha,
   labelGrupo,
   fechar,
 }: {
   pedido: PedidoPainel;
+  parcelas: ParcelaPainel[];
   turma: string;
   campanha: string;
   labelGrupo: string;
   fechar: string;
 }) {
-  const parcelas = await listarParcelas(pedido.id);
   const telefone = pedido.aluno_telefone?.replace(/\D/g, "");
 
   return (
     <>
       {/* Fundo. É um link para o mesmo lugar sem o pedido: clicar fora fecha. */}
-      <Link
+      <LinkRapido
         href={fechar}
-        scroll={false}
         aria-label="Fechar detalhe"
         className="fixed inset-0 z-40 bg-ink/15"
       />
@@ -160,16 +167,15 @@ export async function DetalhePedido({
               {labelGrupo} {turma} · {campanha}
             </p>
           </div>
-          <Link
+          <LinkRapido
             href={fechar}
-            scroll={false}
             aria-label="Fechar"
             className="-mr-1 flex size-8 shrink-0 items-center justify-center rounded-md
               text-muted transition-colors duration-fast ease-soft hover:bg-surface-2
               hover:text-ink"
           >
             <X className="h-4 w-4" />
-          </Link>
+          </LinkRapido>
         </header>
 
         <div className="flex flex-1 flex-col overflow-y-auto">

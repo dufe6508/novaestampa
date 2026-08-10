@@ -1,7 +1,26 @@
 import { cache } from "react";
 import { db } from "./supabase";
+import type {
+  CampanhaResumo,
+  ClienteResumo,
+  GrupoResumo,
+  ItemPainel,
+  PagamentoPainel,
+  ParcelaPainel,
+  PedidoCobranca,
+  PedidoCompleto,
+  PedidoPainel,
+  TurmaPainel,
+} from "./planilha";
 
 export { PREFIXO_BABY_LOOK, reais, tamanhoLegivel } from "./formato";
+
+/**
+ * Tipos, filtros e formatação vivem em `lib/planilha`, que não conhece banco e
+ * por isso pode ser importado do navegador. Reexportados aqui para que as telas
+ * continuem pedindo tudo num lugar só.
+ */
+export * from "./planilha";
 
 /**
  * Leitura da área de gestão.
@@ -15,136 +34,6 @@ export { PREFIXO_BABY_LOOK, reais, tamanhoLegivel } from "./formato";
  * Nenhum status é calculado aqui. Pago, saldo, atraso e adesão vêm das views
  * `vw_*`, que são a fonte da verdade. Se um número precisar mudar, muda lá.
  */
-
-export type ClienteResumo = {
-  id: string;
-  nome: string;
-  tipo: "escola" | "faculdade" | "empresa" | "outro";
-  cidade: string | null;
-  contato_nome: string | null;
-  contato_telefone: string | null;
-  arquivado_em: string | null;
-  campanhas: number;
-  campanhas_abertas: number;
-  pedidos: number;
-  vendido_centavos: number;
-  recebido_centavos: number;
-  a_receber_centavos: number;
-  atrasado_centavos: number;
-};
-
-export type CampanhaResumo = {
-  id: string;
-  cliente_id: string;
-  cliente_nome: string;
-  nome: string;
-  status: "rascunho" | "aberta" | "encerrada" | "concluida";
-  label_grupo: string;
-  label_grupo_plural: string;
-  prazo_pedidos: string | null;
-  prazo_alteracoes: string | null;
-  entrega_prevista: string | null;
-  percentual_entrada: number;
-  grupos: number;
-  pedidos: number;
-  alunos_com_pedido: number;
-  alunos_esperados: number;
-  vendido_centavos: number;
-  recebido_centavos: number;
-  a_receber_centavos: number;
-  atrasado_centavos: number;
-  pedidos_atrasados: number;
-  pedidos_parciais: number;
-  pedidos_sem_pagamento: number;
-  pedidos_pagos: number;
-  pedidos_liberados: number;
-};
-
-export type GrupoResumo = {
-  id: string;
-  campanha_id: string;
-  nome: string;
-  codigo: string;
-  alunos_esperados: number | null;
-  pedidos: number;
-  alunos_com_pedido: number;
-  vendido_centavos: number;
-  recebido_centavos: number;
-  a_receber_centavos: number;
-  atrasado_centavos: number;
-  pedidos_atrasados: number;
-  pedidos_parciais: number;
-  pedidos_sem_pagamento: number;
-  pedidos_pagos: number;
-  pedidos_liberados: number;
-};
-
-export type StatusPagamento = "pago" | "parcial" | "atrasado" | "pendente";
-export type StatusProducao =
-  | "aguardando"
-  | "liberado"
-  | "em_producao"
-  | "pronto"
-  | "entregue";
-
-export type ItemPainel = {
-  id: string;
-  pedido_id: string;
-  produto_nome_snapshot: string;
-  tamanho: string;
-  nome_estampa: string;
-  quantidade: number;
-  observacoes: string | null;
-};
-
-export type PedidoPainel = {
-  id: string;
-  grupo_id: string;
-  perfil_id: string | null;
-  aluno_nome: string;
-  aluno_telefone: string | null;
-  produto_nome_snapshot: string;
-  valor_centavos: number;
-  pago_centavos: number;
-  saldo_centavos: number;
-  status: "ativo" | "cancelado";
-  status_pagamento: StatusPagamento;
-  status_producao: StatusProducao;
-  producao_forcada: boolean;
-  entrada_paga: boolean;
-  pode_produzir: boolean;
-  origem: "aluno" | "admin";
-  observacoes: string | null;
-  criado_em: string;
-  itens: ItemPainel[];
-};
-
-export type ParcelaPainel = {
-  id: string;
-  pedido_id: string;
-  numero: number;
-  valor_centavos: number;
-  pago_centavos: number;
-  saldo_centavos: number;
-  vencimento: string | null;
-  eh_entrada: boolean;
-  status: StatusPagamento;
-  pagamentos: PagamentoPainel[];
-};
-
-export type PagamentoPainel = {
-  id: string;
-  parcela_id: string;
-  valor_centavos: number;
-  metodo: "pix" | "cartao" | "dinheiro" | "transferencia" | "outro";
-  provider: string;
-  pago_em: string;
-};
-
-export type TurmaPainel = {
-  grupo: GrupoResumo;
-  campanha: CampanhaResumo;
-};
 
 // ------------------------------------------------------------
 // Clientes · home do painel
@@ -243,6 +132,37 @@ export const buscarTurmaPorCodigo = cache(
 const COLUNAS_ITEM =
   "id,pedido_id,produto_nome_snapshot,tamanho,nome_estampa,quantidade,observacoes";
 
+/**
+ * Colunas do pedido, uma a uma em vez de `*`.
+ *
+ * `vw_pedido` carrega coluna que tela nenhuma lê (`produto_id`, por exemplo), e
+ * cada uma delas atravessa a rede em toda consulta. Listar aqui também deixa
+ * explícito o que quebra se a view mudar.
+ */
+const COLUNAS_PEDIDO =
+  "id,grupo_id,perfil_id,aluno_nome,aluno_telefone,produto_nome_snapshot," +
+  "valor_centavos,pago_centavos,saldo_centavos,status,status_pagamento," +
+  "status_producao,producao_forcada,entrada_paga,pode_produzir,origem," +
+  "observacoes,criado_em";
+
+const COLUNAS_PARCELA =
+  "id,pedido_id,numero,valor_centavos,pago_centavos,saldo_centavos," +
+  "vencimento,eh_entrada,status";
+
+const COLUNAS_PAGAMENTO = "id,parcela_id,valor_centavos,metodo,provider,pago_em";
+
+/** Agrupa uma lista plana pela chave estrangeira, num passo só. */
+function agrupar<T>(linhas: T[] | null, chave: (linha: T) => string) {
+  const mapa = new Map<string, T[]>();
+  for (const linha of linhas ?? []) {
+    const k = chave(linha);
+    const lista = mapa.get(k);
+    if (lista) lista.push(linha);
+    else mapa.set(k, [linha]);
+  }
+  return mapa;
+}
+
 async function comItens(pedidos: PedidoPainel[]): Promise<PedidoPainel[]> {
   if (pedidos.length === 0) return [];
 
@@ -256,13 +176,7 @@ async function comItens(pedidos: PedidoPainel[]): Promise<PedidoPainel[]> {
     .order("criado_em")
     .returns<ItemPainel[]>();
 
-  const porPedido = new Map<string, ItemPainel[]>();
-  for (const item of data ?? []) {
-    const lista = porPedido.get(item.pedido_id) ?? [];
-    lista.push(item);
-    porPedido.set(item.pedido_id, lista);
-  }
-
+  const porPedido = agrupar(data, (i) => i.pedido_id);
   return pedidos.map((p) => ({ ...p, itens: porPedido.get(p.id) ?? [] }));
 }
 
@@ -277,7 +191,7 @@ export const listarPedidosDaTurma = cache(
   async (grupoId: string): Promise<PedidoPainel[]> => {
     const { data } = await db()
       .from("vw_pedido")
-      .select("*")
+      .select(COLUNAS_PEDIDO)
       .eq("grupo_id", grupoId)
       .eq("status", "ativo")
       .order("aluno_nome")
@@ -288,13 +202,93 @@ export const listarPedidosDaTurma = cache(
 );
 
 /**
- * Pedidos de todas as turmas da campanha, com o nome da turma junto.
+ * A turma inteira numa carga só: pedidos, peças, parcelas e baixas.
  *
- * Serve o bloco "precisa de atenção" da E3, que é uma lista de cobrança: sem o
- * nome da turma, o número de telefone não ajuda ninguém a saber com quem falar.
+ * O motivo é a latência, não o volume. Antes, abrir o detalhe de um pedido
+ * disparava três consultas novas (pedido, parcelas, pagamentos) e o painel
+ * lateral só aparecia quando a última voltasse. Como filtro, aba e detalhe
+ * passaram a ser resolvidos no navegador, a tela precisa ter tudo em mãos desde
+ * o primeiro desenho, e aí abrir um pedido não custa nada.
+ *
+ * O volume não é problema: a maior turma tem algumas dezenas de pedidos, e o
+ * que se carrega a mais são duas parcelas e um punhado de baixas por pedido.
+ *
+ * São três idas ao banco em vez de seis, e as duas do meio saem juntas. O
+ * encadeamento sobrou onde é inevitável: parcela depende do id do pedido, e
+ * pagamento depende do id da parcela.
  */
-export const listarPedidosDaCampanha = cache(
-  async (campanhaId: string): Promise<(PedidoPainel & { grupo_nome: string })[]> => {
+export const carregarTurma = cache(
+  async (grupoId: string): Promise<PedidoCompleto[]> => {
+    const { data: pedidos } = await db()
+      .from("vw_pedido")
+      .select(COLUNAS_PEDIDO)
+      .eq("grupo_id", grupoId)
+      .eq("status", "ativo")
+      .order("aluno_nome")
+      .returns<PedidoPainel[]>();
+
+    if (!pedidos?.length) return [];
+    const ids = pedidos.map((p) => p.id);
+
+    const [{ data: itens }, { data: parcelas }] = await Promise.all([
+      db()
+        .from("pedido_item")
+        .select(COLUNAS_ITEM)
+        .in("pedido_id", ids)
+        .order("criado_em")
+        .returns<ItemPainel[]>(),
+      db()
+        .from("vw_parcela")
+        .select(COLUNAS_PARCELA)
+        .in("pedido_id", ids)
+        .order("numero")
+        .returns<Omit<ParcelaPainel, "pagamentos">[]>(),
+    ]);
+
+    const { data: pagamentos } = parcelas?.length
+      ? await db()
+          .from("pagamento")
+          .select(COLUNAS_PAGAMENTO)
+          .in(
+            "parcela_id",
+            parcelas.map((p) => p.id),
+          )
+          .order("pago_em")
+          .returns<PagamentoPainel[]>()
+      : { data: [] as PagamentoPainel[] };
+
+    const porPedidoItens = agrupar(itens, (i) => i.pedido_id);
+    const porPedidoParcelas = agrupar(parcelas, (p) => p.pedido_id);
+    const porParcela = agrupar(pagamentos, (g) => g.parcela_id);
+
+    return pedidos.map((p) => ({
+      ...p,
+      itens: porPedidoItens.get(p.id) ?? [],
+      parcelas: (porPedidoParcelas.get(p.id) ?? []).map((parcela) => ({
+        ...parcela,
+        pagamentos: porParcela.get(parcela.id) ?? [],
+      })),
+    }));
+  },
+);
+
+/**
+ * Quem precisa ser cobrado nesta campanha, já em ordem de quem deve mais.
+ *
+ * Antes esta função trazia os ~600 pedidos da campanha inteira e, para cada um,
+ * as peças, numa consulta cujo filtro levava 600 identificadores na própria
+ * URL. As peças não eram usadas em lugar nenhum desta tela, e dos 600 pedidos a
+ * página mostra 18: as três listas exibem 6 cada.
+ *
+ * Agora o banco faz o recorte. Só volta pedido com saldo, e só as colunas que a
+ * linha desenha. A ordenação por saldo também desceu para o banco, que já
+ * precisava ordenar de qualquer jeito.
+ *
+ * O nome da turma vem junto porque, sem ele, um telefone na tela não diz com
+ * quem falar. Vem por junção do PostgREST, não por uma segunda consulta.
+ */
+export const listarCobrancaDaCampanha = cache(
+  async (campanhaId: string): Promise<PedidoCobranca[]> => {
     const { data: grupos } = await db()
       .from("grupo")
       .select("id,nome")
@@ -305,18 +299,20 @@ export const listarPedidosDaCampanha = cache(
 
     const { data } = await db()
       .from("vw_pedido")
-      .select("*")
+      .select(
+        "id,grupo_id,aluno_nome,produto_nome_snapshot,saldo_centavos,status_pagamento",
+      )
       .in(
         "grupo_id",
         grupos.map((g) => g.id),
       )
       .eq("status", "ativo")
-      .order("aluno_nome")
-      .returns<PedidoPainel[]>();
+      .gt("saldo_centavos", 0)
+      .order("saldo_centavos", { ascending: false })
+      .returns<Omit<PedidoCobranca, "grupo_nome">[]>();
 
     const nome = new Map(grupos.map((g) => [g.id, g.nome]));
-    const comPecas = await comItens(data ?? []);
-    return comPecas.map((p) => ({ ...p, grupo_nome: nome.get(p.grupo_id) ?? "" }));
+    return (data ?? []).map((p) => ({ ...p, grupo_nome: nome.get(p.grupo_id) ?? "" }));
   },
 );
 
@@ -347,166 +343,9 @@ export async function resumoDeCorte(
   return data ?? [];
 }
 
-export const buscarPedido = cache(async (id: string): Promise<PedidoPainel | null> => {
-  const { data } = await db()
-    .from("vw_pedido")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle<PedidoPainel>();
-  if (!data) return null;
-
-  const [pedido] = await comItens([data]);
-  return pedido;
-});
-
-/** Parcelas do pedido com as baixas dentro. Alimenta o detalhe. */
-export const listarParcelas = cache(async (pedidoId: string): Promise<ParcelaPainel[]> => {
-  const { data: parcelas } = await db()
-    .from("vw_parcela")
-    .select("*")
-    .eq("pedido_id", pedidoId)
-    .order("numero")
-    .returns<ParcelaPainel[]>();
-
-  if (!parcelas?.length) return [];
-
-  const { data: pagamentos } = await db()
-    .from("pagamento")
-    .select("id,parcela_id,valor_centavos,metodo,provider,pago_em")
-    .in(
-      "parcela_id",
-      parcelas.map((p) => p.id),
-    )
-    .order("pago_em")
-    .returns<PagamentoPainel[]>();
-
-  return parcelas.map((p) => ({
-    ...p,
-    pagamentos: (pagamentos ?? []).filter((g) => g.parcela_id === p.id),
-  }));
-});
-
-// ------------------------------------------------------------
-// Filtros da planilha · aplicados em memória
-//
-// Uma turma tem dezenas de pedidos, não milhares. Filtrar no cliente Supabase
-// custaria uma ida ao banco por troca de filtro, e o ganho seria zero.
-// ------------------------------------------------------------
-
-export const FILTROS = {
-  todos: { texto: "Todos", vale: () => true },
-  atrasado: {
-    texto: "Em atraso",
-    vale: (p: PedidoPainel) => p.status_pagamento === "atrasado",
-  },
-  falta: {
-    texto: "Falta pagar",
-    vale: (p: PedidoPainel) => p.saldo_centavos > 0,
-  },
-  sem_pagamento: {
-    texto: "Não pagou nada",
-    vale: (p: PedidoPainel) => p.pago_centavos === 0,
-  },
-  quitado: {
-    texto: "Quitado",
-    vale: (p: PedidoPainel) => p.status_pagamento === "pago",
-  },
-} as const;
-
-export type Filtro = keyof typeof FILTROS;
-
-export function ehFiltro(v: string | undefined): v is Filtro {
-  return !!v && v in FILTROS;
-}
-
-/** Busca por nome do aluno, e só. Quem procura na lista procura uma pessoa. */
-export function filtrar(pedidos: PedidoPainel[], filtro: Filtro, busca?: string) {
-  const termo = busca?.trim().toLowerCase();
-  return pedidos.filter((p) => {
-    if (!FILTROS[filtro].vale(p)) return false;
-    if (!termo) return true;
-    return p.aluno_nome.toLowerCase().includes(termo);
-  });
-}
-
-/**
- * A lista da oficina, uma linha por peça física.
- *
- * Pedido não serve de unidade aqui: kit vira duas peças, e quem pede duas
- * camisetas gera duas linhas de corte. É por isso que a aba Produção é
- * construída a partir dos itens, não dos pedidos.
+/*
+ * `buscarPedido` e `listarParcelas` moravam aqui e saíram: eram o que o detalhe
+ * do pedido usava para se montar, uma consulta de cada vez, a cada clique.
+ * `carregarTurma` já traz pedido, peças, parcelas e baixas de toda a turma numa
+ * carga só, e o detalhe abre a partir dela. Ficaram sem nenhum chamador.
  */
-export type PecaProducao = {
-  item_id: string;
-  pedido_id: string;
-  aluno_nome: string;
-  produto: string;
-  tamanho: string;
-  nome_estampa: string;
-  quantidade: number;
-  status_producao: StatusProducao;
-};
-
-export function pecasParaProduzir(pedidos: PedidoPainel[]): PecaProducao[] {
-  return pedidos
-    .filter((p) => p.pode_produzir)
-    .flatMap((p) =>
-      p.itens.map((i) => ({
-        item_id: i.id,
-        pedido_id: p.id,
-        aluno_nome: p.aluno_nome,
-        produto: i.produto_nome_snapshot,
-        tamanho: i.tamanho,
-        nome_estampa: i.nome_estampa,
-        quantidade: i.quantidade,
-        status_producao: p.status_producao,
-      })),
-    )
-    .sort(
-      (a, b) =>
-        a.aluno_nome.localeCompare(b.aluno_nome, "pt-BR") ||
-        a.produto.localeCompare(b.produto, "pt-BR"),
-    );
-}
-
-export function somar(pedidos: PedidoPainel[]) {
-  return pedidos.reduce(
-    (t, p) => ({
-      vendido: t.vendido + p.valor_centavos,
-      recebido: t.recebido + p.pago_centavos,
-      aReceber: t.aReceber + p.saldo_centavos,
-    }),
-    { vendido: 0, recebido: 0, aReceber: 0 },
-  );
-}
-
-// ------------------------------------------------------------
-// Formatação de data. `dia` do aluno é por extenso; aqui é curto,
-// porque numa tabela densa "23 de setembro" empurra a coluna do dinheiro.
-// ------------------------------------------------------------
-
-export function data(d: string | null | undefined) {
-  if (!d) return null;
-  return new Date(d.length <= 10 ? `${d}T12:00:00` : d).toLocaleDateString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "2-digit",
-  });
-}
-
-export function dataHora(d: string | null | undefined) {
-  if (!d) return null;
-  return new Date(d).toLocaleString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-/** Percentual inteiro, sem casa decimal. 0 quando não há base. */
-export function pct(parte: number, total: number) {
-  if (!total) return 0;
-  return Math.round((parte / total) * 100);
-}

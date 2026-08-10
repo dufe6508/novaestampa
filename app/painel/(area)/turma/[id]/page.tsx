@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { buscarTurmaPainel, pct } from "@/lib/painel";
 import { Topo } from "@/components/painel";
-import { PlanilhaTurma, type QueryPlanilha } from "@/components/planilha-turma";
+import { PlanilhaTurma } from "@/components/planilha-turma";
 
 /**
  * E4 · Turma, pelo lado da empresa.
@@ -11,15 +11,8 @@ import { PlanilhaTurma, type QueryPlanilha } from "@/components/planilha-turma";
  * `/t/[codigo]/gestao`, e mora em `PlanilhaTurma`.
  */
 
-export default async function Turma({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ id: string }>;
-  searchParams: Promise<QueryPlanilha>;
-}) {
+export default async function Turma({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const query = await searchParams;
 
   const turma = await buscarTurmaPainel(id);
   if (!turma) notFound();
@@ -46,12 +39,7 @@ export default async function Turma({
         }
       />
 
-      <PlanilhaTurma
-        grupo={grupo}
-        campanha={campanha}
-        base={`/painel/turma/${id}`}
-        query={query}
-      />
+      <PlanilhaTurma grupo={grupo} campanha={campanha} base={`/painel/turma/${id}`} />
     </>
   );
 }

@@ -3,11 +3,11 @@ import { notFound } from "next/navigation";
 import {
   buscarCampanha,
   data,
+  listarCobrancaDaCampanha,
   listarGrupos,
-  listarPedidosDaCampanha,
   pct,
   resumoDeCorte,
-  type PedidoPainel,
+  type PedidoCobranca,
 } from "@/lib/painel";
 import { reais } from "@/lib/formato";
 import { Barra, Bloco, Kpi, Kpis, Topo, Valor } from "@/components/painel";
@@ -34,7 +34,7 @@ function LinhaCobranca({
   pedido,
   turma,
 }: {
-  pedido: PedidoPainel & { grupo_nome: string };
+  pedido: PedidoCobranca;
   turma: string;
 }) {
   return (
@@ -73,7 +73,7 @@ function ListaCobranca({
 }: {
   titulo: string;
   explica: string;
-  pedidos: (PedidoPainel & { grupo_nome: string })[];
+  pedidos: PedidoCobranca[];
   turma: string;
   atraso: number;
 }) {
@@ -121,7 +121,7 @@ export default async function Campanha({ params }: { params: Promise<{ id: strin
 
   const [grupos, pedidos, corte] = await Promise.all([
     listarGrupos(id),
-    listarPedidosDaCampanha(id),
+    listarCobrancaDaCampanha(id),
     resumoDeCorte("campanha_id", id),
   ]);
 
@@ -129,14 +129,18 @@ export default async function Campanha({ params }: { params: Promise<{ id: strin
 
   // As três listas de cobrança. São exclusivas entre si de propósito: a mesma
   // pessoa aparecendo em duas listas faria a soma das listas mentir.
-  const porSaldo = (a: PedidoPainel, b: PedidoPainel) => b.saldo_centavos - a.saldo_centavos;
-  const atrasados = pedidos.filter((p) => p.status_pagamento === "atrasado").sort(porSaldo);
-  const faltaSegunda = pedidos
-    .filter((p) => p.status_pagamento === "parcial")
-    .sort(porSaldo);
-  const semPagamento = pedidos
-    .filter((p) => p.status_pagamento === "pendente")
-    .sort(porSaldo);
+  //
+  // Uma passada só, e sem ordenar: quem pagou por inteiro já não voltou do
+  // banco, e o que voltou veio ordenado por saldo.
+  const atrasados: PedidoCobranca[] = [];
+  const faltaSegunda: PedidoCobranca[] = [];
+  const semPagamento: PedidoCobranca[] = [];
+
+  for (const p of pedidos) {
+    if (p.status_pagamento === "atrasado") atrasados.push(p);
+    else if (p.status_pagamento === "parcial") faltaSegunda.push(p);
+    else if (p.status_pagamento === "pendente") semPagamento.push(p);
+  }
 
   const prazos = [
     { rotulo: "Pedidos até", valor: campanha.prazo_pedidos },

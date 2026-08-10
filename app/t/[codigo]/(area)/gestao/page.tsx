@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { buscarTurmaPorCodigo, pct } from "@/lib/painel";
 import { reais } from "@/lib/formato";
 import { Kpi, Kpis } from "@/components/painel";
-import { PlanilhaTurma, type QueryPlanilha } from "@/components/planilha-turma";
+import { PlanilhaTurma } from "@/components/planilha-turma";
 
 /**
  * Gestão da turma · a tela do representante.
@@ -24,13 +24,10 @@ import { PlanilhaTurma, type QueryPlanilha } from "@/components/planilha-turma";
 
 export default async function Gestao({
   params,
-  searchParams,
 }: {
   params: Promise<{ codigo: string }>;
-  searchParams: Promise<QueryPlanilha>;
 }) {
   const { codigo } = await params;
-  const query = await searchParams;
 
   const turma = await buscarTurmaPorCodigo(codigo);
   if (!turma) notFound();
@@ -82,12 +79,7 @@ export default async function Gestao({
         </Kpis>
       </div>
 
-      <PlanilhaTurma
-        grupo={grupo}
-        campanha={campanha}
-        base={`/t/${codigo}/gestao`}
-        query={query}
-      />
+      <PlanilhaTurma grupo={grupo} campanha={campanha} base={`/t/${codigo}/gestao`} />
     </div>
   );
 }

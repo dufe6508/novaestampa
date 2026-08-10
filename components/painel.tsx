@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { reais } from "@/lib/formato";
-import { pct } from "@/lib/painel";
+// De `lib/planilha`, não de `lib/painel`: `Valor` e `Barra` são usados também
+// pela planilha, que roda no navegador, e `lib/painel` traz o cliente Supabase
+// junto. Importar dali arrastaria o banco (e a chave de serviço) para o bundle.
+import { pct } from "@/lib/planilha";
 import { Seta } from "./icones";
 
 /**
@@ -193,90 +196,12 @@ export function Busca({
   );
 }
 
-/**
- * Filtros como link, não como botão de estado.
- *
- * Cada filtro é uma URL. Mesmo motivo da busca: dá para mandar para alguém
- * "abre a lista dos atrasados da 3B" e a pessoa cai exatamente ali.
+/*
+ * `Chips` e `SubAbas` moraram aqui e foram para `planilha-cliente`. Lá eles
+ * trocam a URL sem ir ao servidor, e eram os únicos dois lugares que usavam
+ * esses controles. Manter uma cópia de servidor sem ninguém chamando só criaria
+ * a dúvida de qual das duas está valendo.
  */
-export function Chips({
-  opcoes,
-}: {
-  opcoes: { texto: string; href: string; ativo: boolean; contagem?: number }[];
-}) {
-  // Uma linha só, que rola de lado quando não cabe. Quebrar em duas fileiras
-  // empurra a lista para baixo e faz a segunda linha parecer outro grupo de
-  // filtros. Rolar é o gesto que o dedo já espera numa faixa de filtros.
-  return (
-    <div className="sem-barra -mx-4 flex items-center gap-1.5 overflow-x-auto px-4 md:mx-0 md:px-0">
-      {opcoes.map((o) => (
-        <Link
-          key={o.href}
-          href={o.href}
-          scroll={false}
-          aria-current={o.ativo ? "true" : undefined}
-          className={`inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-md border
-            px-2.5 text-caption font-medium transition-colors duration-fast ease-soft
-            ${
-              o.ativo
-                ? "border-ink bg-ink text-white"
-                : "border-line bg-surface text-ink-2 hover:border-line-strong hover:bg-surface-2"
-            }`}
-        >
-          {o.texto}
-          {o.contagem !== undefined && (
-            <span
-              data-nums
-              className={o.ativo ? "text-white/70" : "text-muted"}
-            >
-              {o.contagem}
-            </span>
-          )}
-        </Link>
-      ))}
-    </div>
-  );
-}
-
-/**
- * Sub-abas. Um nível abaixo das abas principais, e com desenho diferente.
- *
- * Aba principal é sublinhado; sub-aba é segmento dentro de uma caixa cinza.
- * Se as duas fossem iguais, a tela teria duas fileiras de links parecidos e
- * ninguém saberia qual manda em qual.
- */
-export function SubAbas({
-  opcoes,
-}: {
-  opcoes: { texto: string; href: string; ativo: boolean; contagem?: number }[];
-}) {
-  return (
-    <div className="inline-flex w-fit max-w-full gap-0.5 overflow-x-auto rounded-lg bg-surface-2 p-0.5">
-      {opcoes.map((o) => (
-        <Link
-          key={o.href}
-          href={o.href}
-          scroll={false}
-          aria-current={o.ativo ? "page" : undefined}
-          className={`inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md
-            px-3 text-caption transition-colors duration-fast ease-soft
-            ${
-              o.ativo
-                ? "bg-surface font-semibold text-ink shadow-card"
-                : "font-medium text-muted hover:text-ink"
-            }`}
-        >
-          {o.texto}
-          {o.contagem !== undefined && (
-            <span data-nums className={o.ativo ? "text-muted" : "text-faint"}>
-              {o.contagem}
-            </span>
-          )}
-        </Link>
-      ))}
-    </div>
-  );
-}
 
 /** Cabeçalho de tela. Título, trilha e ações na mesma linha no desktop. */
 export function Topo({

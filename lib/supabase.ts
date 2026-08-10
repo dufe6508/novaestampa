@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 // Reexportado por compatibilidade: a formatação vive em lib/formato.
 export { reais } from "./formato";
@@ -25,11 +25,35 @@ function url() {
 
 const semSessao = { auth: { persistSession: false, autoRefreshToken: false } };
 
+/**
+ * Um cliente por chave, criado uma vez só.
+ *
+ * `createClient` monta um objeto grande (auth, realtime, storage, postgrest) e
+ * nada disso guarda estado de usuário aqui: `persistSession` está desligado e a
+ * chave é a mesma o tempo todo. Criar um por consulta era desperdício puro, e
+ * uma tela do painel faz meia dúzia de consultas. Guardar a instância também
+ * deixa o `fetch` do Node reaproveitar a conexão, que é o que de fato custa
+ * quando o banco está em outra máquina.
+ *
+ * Módulo é por processo, então o cache morre junto com o servidor. Não há
+ * vazamento de dado entre requisições porque não há sessão para vazar.
+ */
+const clientes = new Map<string, SupabaseClient>();
+
+function cliente(key: string) {
+  const guardado = clientes.get(key);
+  if (guardado) return guardado;
+
+  const novo = createClient(url(), key, semSessao);
+  clientes.set(key, novo);
+  return novo;
+}
+
 /** Leitura do catálogo público. Só enxerga as views. */
 export function publico() {
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   if (!key) throw new Error("Falta NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY no .env.local");
-  return createClient(url(), key, semSessao);
+  return cliente(key);
 }
 
 /**
@@ -50,7 +74,7 @@ export function db() {
       "Falta SUPABASE_SERVICE_ROLE_KEY ou NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY no .env.local.",
     );
   }
-  return createClient(url(), key, semSessao);
+  return cliente(key);
 }
 
 /** Caminho no bucket `produtos` para URL pública da imagem. */
