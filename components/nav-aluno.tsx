@@ -23,19 +23,23 @@ const ABAS = [
 ] as const;
 
 /**
- * Gestão, não "empresa": quem entra aqui pode ser admin da Nova Estampa,
- * comissão ou representante de turma, e são níveis de permissão diferentes.
- * Chamar de empresa daria a entender que é só a Nova Estampa.
+ * Gestão da turma, não da empresa.
  *
- * Aparece para todo mundo porque, no protótipo, todo usuário é admin
- * (CLAUDE.md §3.3). Quando os papéis existirem, esta aba passa a depender de
- * `perfil.tipo` e some para quem é aluno.
+ * Leva para a planilha desta turma e só dela. Quem usa é o representante ou a
+ * comissão, e o escopo do que ele enxerga é o mesmo código pelo qual entrou.
+ * A área da empresa, que vê todos os clientes, é outro lugar e depende dos
+ * papéis que só vêm com a auth definitiva (CLAUDE.md §3.3).
+ *
+ * Aparece para todo mundo porque, no protótipo, quem entra por um código é
+ * tratado como representante daquela turma. Quando `perfil.tipo` valer alguma
+ * coisa, esta aba some para quem é só aluno.
  */
-const ABA_GESTAO = { href: "/painel", texto: "Gestão", Icone: Gestao } as const;
+const ABA_GESTAO = { href: "gestao", texto: "Gestão", Icone: Gestao } as const;
 
 function useAbas(codigo: string, emAberto: number) {
   const caminho = usePathname();
   const base = `/t/${codigo}`;
+  const urlGestao = `${base}/${ABA_GESTAO.href}`;
 
   const abas = ABAS.map(({ href, texto, Icone }) => {
     const url = `${base}/${href}`;
@@ -51,10 +55,10 @@ function useAbas(codigo: string, emAberto: number) {
   return [
     ...abas,
     {
-      url: ABA_GESTAO.href,
+      url: urlGestao,
       texto: ABA_GESTAO.texto,
       Icone: ABA_GESTAO.Icone,
-      ativa: caminho.startsWith(ABA_GESTAO.href),
+      ativa: caminho === urlGestao || caminho.startsWith(`${urlGestao}/`),
       alerta: false,
     },
   ];

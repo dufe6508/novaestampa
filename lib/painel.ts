@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { db } from "./supabase";
 
-export { reais, tamanhoLegivel } from "./formato";
+export { PREFIXO_BABY_LOOK, reais, tamanhoLegivel } from "./formato";
 
 /**
  * Leitura da área de gestão.
@@ -56,6 +56,8 @@ export type CampanhaResumo = {
   pedidos_atrasados: number;
   pedidos_parciais: number;
   pedidos_sem_pagamento: number;
+  pedidos_pagos: number;
+  pedidos_liberados: number;
 };
 
 export type GrupoResumo = {
@@ -73,6 +75,8 @@ export type GrupoResumo = {
   pedidos_atrasados: number;
   pedidos_parciais: number;
   pedidos_sem_pagamento: number;
+  pedidos_pagos: number;
+  pedidos_liberados: number;
 };
 
 export type StatusPagamento = "pago" | "parcial" | "atrasado" | "pendente";
@@ -214,6 +218,24 @@ export const buscarTurmaPainel = cache(async (id: string): Promise<TurmaPainel |
   return { grupo, campanha };
 });
 
+/**
+ * A mesma turma, achada pelo código em vez do id.
+ *
+ * É por aqui que o representante entra: ele não navega por cliente nem por
+ * campanha, ele já está dentro de uma turma e o código é o que ele tem na mão.
+ */
+export const buscarTurmaPorCodigo = cache(
+  async (codigo: string): Promise<TurmaPainel | null> => {
+    const { data } = await db()
+      .from("grupo")
+      .select("id")
+      .eq("codigo", codigo.toUpperCase())
+      .maybeSingle<{ id: string }>();
+
+    return data ? buscarTurmaPainel(data.id) : null;
+  },
+);
+
 // ------------------------------------------------------------
 // Pedidos · a planilha
 // ------------------------------------------------------------
@@ -264,6 +286,66 @@ export const listarPedidosDaTurma = cache(
     return comItens(data ?? []);
   },
 );
+
+/**
+ * Pedidos de todas as turmas da campanha, com o nome da turma junto.
+ *
+ * Serve o bloco "precisa de atenção" da E3, que é uma lista de cobrança: sem o
+ * nome da turma, o número de telefone não ajuda ninguém a saber com quem falar.
+ */
+export const listarPedidosDaCampanha = cache(
+  async (campanhaId: string): Promise<(PedidoPainel & { grupo_nome: string })[]> => {
+    const { data: grupos } = await db()
+      .from("grupo")
+      .select("id,nome")
+      .eq("campanha_id", campanhaId)
+      .returns<{ id: string; nome: string }[]>();
+
+    if (!grupos?.length) return [];
+
+    const { data } = await db()
+      .from("vw_pedido")
+      .select("*")
+      .in(
+        "grupo_id",
+        grupos.map((g) => g.id),
+      )
+      .eq("status", "ativo")
+      .order("aluno_nome")
+      .returns<PedidoPainel[]>();
+
+    const nome = new Map(grupos.map((g) => [g.id, g.nome]));
+    const comPecas = await comItens(data ?? []);
+    return comPecas.map((p) => ({ ...p, grupo_nome: nome.get(p.grupo_id) ?? "" }));
+  },
+);
+
+export type LinhaCorte = {
+  grupo_id: string;
+  grupo_nome: string;
+  campanha_id: string;
+  produto: string;
+  tamanho: string;
+  total: number;
+};
+
+/**
+ * Resumo de corte. É o que a oficina consome de verdade: não interessa quem
+ * pediu, interessa quantas peças de cada tamanho precisam ser cortadas.
+ * Conta só peça liberada, porque peça não paga não vira corte.
+ */
+export async function resumoDeCorte(
+  campo: "campanha_id" | "grupo_id",
+  id: string,
+): Promise<LinhaCorte[]> {
+  const { data } = await db()
+    .from("vw_resumo_corte")
+    .select("*")
+    .eq(campo, id)
+    .order("produto")
+    .returns<LinhaCorte[]>();
+  return data ?? [];
+}
 
 export const buscarPedido = cache(async (id: string): Promise<PedidoPainel | null> => {
   const { data } = await db()
@@ -337,18 +419,54 @@ export function ehFiltro(v: string | undefined): v is Filtro {
   return !!v && v in FILTROS;
 }
 
-/** Busca por nome do aluno e por nome da estampa, que nem sempre são iguais. */
+/** Busca por nome do aluno, e só. Quem procura na lista procura uma pessoa. */
 export function filtrar(pedidos: PedidoPainel[], filtro: Filtro, busca?: string) {
   const termo = busca?.trim().toLowerCase();
   return pedidos.filter((p) => {
     if (!FILTROS[filtro].vale(p)) return false;
     if (!termo) return true;
-    return (
-      p.aluno_nome.toLowerCase().includes(termo) ||
-      p.produto_nome_snapshot.toLowerCase().includes(termo) ||
-      p.itens.some((i) => i.nome_estampa.toLowerCase().includes(termo))
-    );
+    return p.aluno_nome.toLowerCase().includes(termo);
   });
+}
+
+/**
+ * A lista da oficina, uma linha por peça física.
+ *
+ * Pedido não serve de unidade aqui: kit vira duas peças, e quem pede duas
+ * camisetas gera duas linhas de corte. É por isso que a aba Produção é
+ * construída a partir dos itens, não dos pedidos.
+ */
+export type PecaProducao = {
+  item_id: string;
+  pedido_id: string;
+  aluno_nome: string;
+  produto: string;
+  tamanho: string;
+  nome_estampa: string;
+  quantidade: number;
+  status_producao: StatusProducao;
+};
+
+export function pecasParaProduzir(pedidos: PedidoPainel[]): PecaProducao[] {
+  return pedidos
+    .filter((p) => p.pode_produzir)
+    .flatMap((p) =>
+      p.itens.map((i) => ({
+        item_id: i.id,
+        pedido_id: p.id,
+        aluno_nome: p.aluno_nome,
+        produto: i.produto_nome_snapshot,
+        tamanho: i.tamanho,
+        nome_estampa: i.nome_estampa,
+        quantidade: i.quantidade,
+        status_producao: p.status_producao,
+      })),
+    )
+    .sort(
+      (a, b) =>
+        a.aluno_nome.localeCompare(b.aluno_nome, "pt-BR") ||
+        a.produto.localeCompare(b.produto, "pt-BR"),
+    );
 }
 
 export function somar(pedidos: PedidoPainel[]) {

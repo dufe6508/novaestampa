@@ -3,29 +3,36 @@ import type { Pedido } from "@/lib/aluno";
 /**
  * Selo de status.
  *
- * Cor nunca informa sozinha: todo selo carrega o texto. Quem não distingue
- * verde de vermelho lê "Em atraso" do mesmo jeito.
+ * Sem pílula e sem fundo colorido. A versão anterior tinha os dois e o
+ * resultado era um confete de retângulos coloridos: numa lista de sessenta
+ * linhas, o que devia chamar atenção passava a ser ruído.
  *
- * Rótulos curtos e `whitespace-nowrap` de propósito: selo que quebra em duas
- * linhas dentro de um card estreito parece defeito.
+ * O que sobrou é o mínimo que ainda informa: um ponto na cor do estado e o
+ * texto. Cor nunca informa sozinha, quem não distingue verde de vermelho lê
+ * "Em atraso" do mesmo jeito.
+ *
+ * O texto fica em `ink-2` nos estados calmos e assume a cor só quando algo
+ * exige ação. Assim o vermelho de "Em atraso" volta a ser o único vermelho da
+ * tela, que é o que faz ele funcionar.
  */
 
 const TONS = {
-  neutro: "bg-surface-2 text-ink-2",
-  ok: "bg-success-soft text-success",
-  atencao: "bg-warning-soft text-warning",
-  ruim: "bg-danger-soft text-danger",
+  neutro: { ponto: "bg-faint", texto: "text-muted" },
+  ok: { ponto: "bg-success", texto: "text-ink-2" },
+  atencao: { ponto: "bg-warning", texto: "text-ink-2" },
+  ruim: { ponto: "bg-danger", texto: "text-danger" },
 } as const;
 
 type Tom = keyof typeof TONS;
 
 function Base({ tom, children }: { tom: Tom; children: React.ReactNode }) {
+  const t = TONS[tom];
   return (
     <span
-      className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-sm px-2
-        py-1 text-caption font-semibold ${TONS[tom]}`}
+      className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap text-caption
+        font-medium leading-none ${t.texto}`}
     >
-      <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-current opacity-70" />
+      <span aria-hidden className={`size-[5px] shrink-0 rounded-full ${t.ponto}`} />
       {children}
     </span>
   );
@@ -48,7 +55,7 @@ const PRODUCAO: Record<Pedido["status_producao"], { texto: string; tom: Tom }> =
   liberado: { texto: "Confirmado", tom: "ok" },
   em_producao: { texto: "Em produção", tom: "atencao" },
   pronto: { texto: "Pronto", tom: "ok" },
-  entregue: { texto: "Entregue", tom: "ok" },
+  entregue: { texto: "Entregue", tom: "neutro" },
 };
 
 export function SeloPagamento({ status }: { status: Pedido["status_pagamento"] }) {
@@ -60,3 +67,15 @@ export function SeloProducao({ status }: { status: Pedido["status_producao"] }) 
   const s = PRODUCAO[status];
   return <Base tom={s.tom}>{s.texto}</Base>;
 }
+
+/** Só o ponto, para quando o texto já está na coluna do lado. */
+export function Ponto({ status }: { status: Pedido["status_pagamento"] }) {
+  return (
+    <span
+      aria-hidden
+      className={`inline-block size-[5px] shrink-0 rounded-full ${TONS[PAGAMENTO[status].tom].ponto}`}
+    />
+  );
+}
+
+export const textoPagamento = (s: Pedido["status_pagamento"]) => PAGAMENTO[s].texto;
