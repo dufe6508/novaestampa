@@ -1,7 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { PREFIXO_BABY_LOOK } from "@/lib/formato";
+import {
+  PADRAO_TELEFONE,
+  PREFIXO_BABY_LOOK,
+  mascaraTelefone,
+} from "@/lib/formato";
 
 /**
  * Peças de formulário e de estado, compartilhadas pelas telas do aluno.
@@ -52,19 +56,64 @@ const BASE_CAMPO =
 const CAMPO_OK =
   "border-line focus:border-brand-deep focus:shadow-[0_0_0_3px_rgb(15_168_188_/_0.16)]";
 
+/**
+ * Aviso de validação, em português e escrito por nós.
+ *
+ * O navegador tem mensagem própria para campo vazio, e-mail sem `@` e formato
+ * fora do padrão, mas ela sai no idioma do aparelho, normalmente em inglês, e
+ * fala como especificação ("Please match the requested format"). Aqui a
+ * mensagem diz o que fazer.
+ *
+ * `setCustomValidity` precisa ser limpa a cada digitada, senão o campo fica
+ * inválido para sempre, mesmo depois de corrigido.
+ */
+function avisoDe(el: HTMLInputElement, aviso?: string) {
+  const v = el.validity;
+  if (v.valueMissing) return "Preencha este campo.";
+  if (v.typeMismatch && el.type === "email") return "Digite um e-mail válido, com @.";
+  if (v.tooShort) return `Digite pelo menos ${el.minLength} caracteres.`;
+  return aviso ?? "Confira este campo.";
+}
+
+function avisar(aviso?: string) {
+  return {
+    onInvalid: (e: React.InvalidEvent<HTMLInputElement>) =>
+      e.currentTarget.setCustomValidity(avisoDe(e.currentTarget, aviso)),
+    onInput: (e: React.FormEvent<HTMLInputElement>) =>
+      e.currentTarget.setCustomValidity(""),
+  };
+}
+
+/**
+ * `input` cru com o mesmo aviso, para as telas que trazem estilo próprio e não
+ * usam o `Campo`. Componente, e não um punhado de props, porque o handler não
+ * atravessa a fronteira de Server Component.
+ */
+export function Entrada({
+  aviso,
+  ...props
+}: React.InputHTMLAttributes<HTMLInputElement> & { aviso?: string }) {
+  return <input {...props} {...avisar(aviso)} />;
+}
+
 export function Campo({
   etiqueta,
   ajuda,
   erro,
+  aviso,
   className = "",
   id,
+  onInput,
   ...props
 }: React.InputHTMLAttributes<HTMLInputElement> & {
   etiqueta: string;
   ajuda?: string;
   erro?: string | null;
+  /** Texto do aviso quando o valor não bate com `pattern`. */
+  aviso?: string;
 }) {
   const idAjuda = ajuda || erro ? `${id}-ajuda` : undefined;
+  const validacao = avisar(aviso);
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -77,6 +126,11 @@ export function Campo({
         aria-describedby={idAjuda}
         className={`${BASE_CAMPO} ${erro ? "border-danger" : CAMPO_OK} ${className}`}
         {...props}
+        onInvalid={validacao.onInvalid}
+        onInput={(e) => {
+          validacao.onInput(e);
+          onInput?.(e);
+        }}
       />
       {(ajuda || erro) && (
         <p
@@ -88,6 +142,35 @@ export function Campo({
         </p>
       )}
     </div>
+  );
+}
+
+/**
+ * Telefone, com máscara enquanto digita.
+ *
+ * Existe porque o campo aparece no login e na conta, e antes aceitava
+ * "31999848388ddssfd2d". A máscara descarta o que não é dígito na hora, então
+ * o formato errado nem chega a ser digitado, e o `pattern` só fecha a porta
+ * para quem cola texto ou desliga o script.
+ *
+ * ponytail: reescreve o valor no próprio input, sem estado controlado. O
+ * cursor pula para o fim quando se edita o meio do número; troca por
+ * componente controlado se isso incomodar na prática.
+ */
+export function CampoTelefone(props: React.ComponentProps<typeof Campo>) {
+  return (
+    <Campo
+      type="tel"
+      inputMode="tel"
+      autoComplete="tel"
+      placeholder="(31) 999848388"
+      pattern={PADRAO_TELEFONE}
+      aviso="Digite o DDD e o número, como em (31) 999848388."
+      {...props}
+      onInput={(e) => {
+        e.currentTarget.value = mascaraTelefone(e.currentTarget.value);
+      }}
+    />
   );
 }
 

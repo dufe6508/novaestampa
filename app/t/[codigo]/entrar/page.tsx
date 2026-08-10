@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { buscarTurma, entrar, meusPedidos, totalEmAberto } from "@/lib/aluno";
 import { abrirSessao, sessao } from "@/lib/sessao";
+import { mascaraTelefone, nomeCompletoValido, telefoneValido } from "@/lib/formato";
 import { Marca } from "@/components/logo";
 import { FormEntrar } from "./form-entrar";
 
@@ -35,10 +36,12 @@ export default async function EntrarNaTurma({
     const email = String(dados.get("email") ?? "").trim();
     const telefone = String(dados.get("telefone") ?? "").trim();
 
-    if (nome.length < 2) return "Digite seu nome completo.";
-    if (!email.includes("@")) return "Digite um e-mail válido.";
+    if (!nomeCompletoValido(nome)) return "Digite seu nome e o sobrenome.";
+    if (!email.includes("@")) return "Digite um e-mail válido, com @.";
+    if (telefone && !telefoneValido(telefone))
+      return "Digite o telefone com DDD, como em (31) 999848388.";
 
-    const r = await entrar(nome, email, telefone || null);
+    const r = await entrar(nome, email, telefone ? mascaraTelefone(telefone) : null);
     if (r.erro) return r.erro;
 
     await abrirSessao({ id: r.perfilId!, nome });

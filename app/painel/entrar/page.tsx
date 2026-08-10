@@ -3,6 +3,7 @@ import { entrarNaEmpresa } from "../acoes";
 import { perfilEmpresa } from "@/lib/empresa";
 import { sessao } from "@/lib/sessao";
 import { Logo } from "@/components/logo";
+import { Entrada } from "@/components/campos";
 import { FormAcao } from "@/components/form-acao";
 
 /**
@@ -42,12 +43,13 @@ export default async function EntrarNaEmpresa() {
             <label htmlFor="codigo" className="text-caption font-semibold text-ink-2">
               Código da empresa
             </label>
-            <input
+            <Entrada
               id="codigo"
               name="codigo"
               autoComplete="off"
               autoFocus
               required
+              aviso="Digite o código da empresa."
               className="h-12 w-full rounded-lg border border-line bg-surface px-3.5 text-center
                 font-mono text-h3 tracking-[0.14em] text-ink uppercase outline-none
                 transition-[border-color,box-shadow] duration-base ease-soft

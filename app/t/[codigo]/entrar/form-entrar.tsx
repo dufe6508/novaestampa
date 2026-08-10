@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
-import { Botao, Campo, Alerta } from "@/components/campos";
+import { Botao, Campo, CampoTelefone, Alerta } from "@/components/campos";
+import { PADRAO_NOME_COMPLETO } from "@/lib/formato";
 
 /**
  * Três campos, dois obrigatórios. Coletar o mínimo é decisão registrada:
@@ -28,6 +29,8 @@ export function FormEntrar({
         autoComplete="name"
         autoFocus
         required
+        pattern={PADRAO_NOME_COMPLETO}
+        aviso="Digite nome e sobrenome."
       />
       <Campo
         id="email"
@@ -39,15 +42,11 @@ export function FormEntrar({
         inputMode="email"
         required
       />
-      <Campo
+      <CampoTelefone
         id="telefone"
         name="telefone"
-        type="tel"
         etiqueta="Telefone"
         ajuda="Opcional. Serve para falarem com você sobre a entrega."
-        placeholder="(31) 90000-0000"
-        autoComplete="tel"
-        inputMode="tel"
       />
 
       {erro && <Alerta tom="erro">{erro}</Alerta>}

@@ -14,6 +14,7 @@ import {
   type PedidoPainel,
 } from "@/lib/painel";
 import { reais } from "@/lib/formato";
+import { Entrada } from "./campos";
 import { FormAcao } from "./form-acao";
 import { Escolha } from "./escolha";
 import { SeloPagamento, SeloProducao } from "./selo";
@@ -359,10 +360,11 @@ export async function DetalhePedido({
                   <label htmlFor={`motivo-${pedido.id}`} className="sr-only">
                     Motivo da liberação
                   </label>
-                  <input
+                  <Entrada
                     id={`motivo-${pedido.id}`}
                     name="motivo"
                     required
+                    aviso="Escreva o motivo da liberação."
                     placeholder="Motivo, ex. acordo com a comissão"
                     className={`${CAMPO} w-full`}
                   />

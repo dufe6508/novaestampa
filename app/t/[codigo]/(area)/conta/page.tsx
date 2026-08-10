@@ -2,7 +2,8 @@ import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { atualizarTelefone, buscarPerfil, buscarTurma, meusPedidos } from "@/lib/aluno";
 import { fecharSessao, sessao } from "@/lib/sessao";
-import { Campo } from "@/components/campos";
+import { CampoTelefone } from "@/components/campos";
+import { mascaraTelefone, telefoneValido } from "@/lib/formato";
 import { FormAcao } from "@/components/form-acao";
 import { TrocarTurma } from "./trocar-turma";
 
@@ -34,7 +35,15 @@ export default async function Conta({ params }: { params: Promise<{ codigo: stri
   async function salvarTelefone(_estado: string | null, dados: FormData) {
     "use server";
 
-    const r = await atualizarTelefone(aluno!.id, String(dados.get("telefone") ?? ""));
+    const telefone = String(dados.get("telefone") ?? "").trim();
+    // Apagar o telefone é permitido; digitar pela metade, não.
+    if (telefone && !telefoneValido(telefone))
+      return "Digite o telefone com DDD, como em (31) 999848388.";
+
+    const r = await atualizarTelefone(
+      aluno!.id,
+      telefone ? mascaraTelefone(telefone) : "",
+    );
     if (r.erro) return r.erro;
 
     revalidatePath(`/t/${turma!.codigo}/conta`);
@@ -72,15 +81,11 @@ export default async function Conta({ params }: { params: Promise<{ codigo: stri
             pendenteTexto="Salvando…"
             tom="secundario"
           >
-            <Campo
+            <CampoTelefone
               id="telefone"
               name="telefone"
-              type="tel"
               etiqueta="Telefone"
               defaultValue={perfil.telefone ?? ""}
-              placeholder="(31) 90000-0000"
-              autoComplete="tel"
-              inputMode="tel"
               ajuda="Serve para falarem com você sobre a entrega. Pedidos já feitos guardam o telefone que estava lá na hora, e continuam como estão."
             />
           </FormAcao>
