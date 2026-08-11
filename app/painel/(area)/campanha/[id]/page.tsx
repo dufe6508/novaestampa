@@ -519,13 +519,10 @@ export default async function Campanha({
             titulo="Nenhum produto cadastrado"
             texto="O produto é o que aparece na loja do aluno. Sem ele, quem entra com o código não tem o que pedir."
             acao={
-              <Link
+              <NovoProduto
                 href={comValor("produto", "novo")}
-                scroll={false}
-                className="text-caption font-semibold text-ink underline"
-              >
-                Cadastrar o primeiro produto
-              </Link>
+                texto="Cadastrar o primeiro produto"
+              />
             }
           />
         ) : (
@@ -533,15 +530,9 @@ export default async function Campanha({
             titulo="Produtos"
             atraso={120}
             acao={
-              <Link
-                href={comValor("produto", "novo")}
-                scroll={false}
-                className="inline-flex h-8 items-center rounded-md bg-ink px-3 text-caption
-                  font-semibold text-white transition-opacity duration-fast ease-soft
-                  hover:opacity-90"
-              >
-                Novo produto
-              </Link>
+              <span data-nums className="text-caption text-muted">
+                {catalogo.length} {catalogo.length === 1 ? "produto" : "produtos"}
+              </span>
             }
           >
             <ListaProdutos produtos={catalogo} fechar={fechar} />
@@ -568,13 +559,7 @@ export default async function Campanha({
                 <span data-nums className="hidden text-caption text-muted sm:inline">
                   {pecasNoCorte} {pecasNoCorte === 1 ? "peça" : "peças"}
                 </span>
-                <Link
-                  href={comAcao("exportar")}
-                  scroll={false}
-                  className="inline-flex h-8 items-center rounded-md bg-ink px-3 text-caption
-                    font-semibold text-white transition-opacity duration-fast ease-soft
-                    hover:opacity-90"
-                >
+                <Link href={comAcao("exportar")} scroll={false} className={BOTAO}>
                   Exportar listas
                 </Link>
               </div>
@@ -620,6 +605,27 @@ export default async function Campanha({
         )
       ) : (
         <>
+          {/*
+            Campanha recém-criada cai aqui, na visão geral, com tudo zerado e
+            nenhum caminho óbvio para o passo seguinte. Sem produto a loja não
+            existe, então o aviso mora na primeira tela e some sozinho quando o
+            primeiro produto entra.
+          */}
+          {catalogo.length === 0 && (
+            <div
+              className="entra flex flex-wrap items-center justify-between gap-3 rounded-lg
+                border border-dashed border-line-strong bg-surface px-4 py-3.5"
+              style={{ "--atraso": "100ms" } as React.CSSProperties}
+            >
+              <p className="flex min-w-0 items-center gap-3 text-body-sm text-ink-2">
+                <Camiseta className="h-5 w-5 shrink-0 text-faint" />
+                A loja desta campanha está vazia. Sem produto, quem entra com o código não
+                tem o que pedir.
+              </p>
+              <NovoProduto href={comValor("produto", "novo")} texto="Cadastrar produto" />
+            </div>
+          )}
+
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             <Bloco titulo="Recebimento" atraso={120}>
               <div className="flex flex-col gap-3 px-4 py-4">
