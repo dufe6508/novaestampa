@@ -89,6 +89,23 @@ export function capitalizarNome(valor: string) {
     .join(" ");
 }
 
+/**
+ * A mesma ideia, mas para aplicar enquanto a pessoa digita.
+ *
+ * Diferença para `capitalizarNome`: não faz `trim` nem colapsa espaço, senão o
+ * espaço que a pessoa acabou de teclar sumiria antes de ela escrever a próxima
+ * palavra. E não baixa partícula, porque "de" só vira minúscula depois de virar
+ * palavra do meio, e no meio da digitação ainda não dá para saber.
+ *
+ * Sobe a primeira letra e a que vem depois de cada espaço. O resto fica como
+ * veio, pelo mesmo motivo de sempre: não estragar "MacHado".
+ *
+ * A normalização de verdade continua no envio, no servidor.
+ */
+export function capitalizarDigitando(valor: string) {
+  return valor.replace(/(^|\s)(\S)/g, (_, antes: string, letra: string) => antes + letra.toUpperCase());
+}
+
 /** Frase livre, como o motivo de uma liberação. Só a primeira letra. */
 export function capitalizarFrase(valor: string) {
   return maiusculaInicial(valor.trim().replace(/\s+/g, " "));

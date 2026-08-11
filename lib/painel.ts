@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { revalidateTag, unstable_cache } from "next/cache";
 import { db } from "./supabase";
 
 export { PREFIXO_BABY_LOOK, reais, tamanhoLegivel } from "./formato";
@@ -15,6 +16,45 @@ export { PREFIXO_BABY_LOOK, reais, tamanhoLegivel } from "./formato";
  * Nenhum status é calculado aqui. Pago, saldo, atraso e adesão vêm das views
  * `vw_*`, que são a fonte da verdade. Se um número precisar mudar, muda lá.
  */
+
+/**
+ * Cache das leituras da gestão.
+ *
+ * O banco responde em cerca de 1 ms; o que custa é a viagem até ele, uns 300 ms
+ * por chamada, e a planilha da turma faz cinco em sequência. Trocar de filtro
+ * pagava esse pedágio inteiro de novo para aplicar um `.filter()` em memória,
+ * já que filtro e busca nunca foram ao banco (ver o bloco de FILTROS).
+ *
+ * `unstable_cache` guarda o resultado entre requisições, com chave por
+ * argumento. Como a lista é a mesma para qualquer filtro, o primeiro acesso
+ * paga e os cliques seguintes respondem de memória.
+ *
+ * Ficar velho é o risco, e é por isso que existe a tag: toda escrita chama
+ * `invalidarPainel()` e derruba tudo de uma vez. O `revalidate` é só a rede de
+ * segurança para uma escrita feita fora do sistema, direto no banco.
+ */
+const TAG_PAINEL = "painel";
+
+/**
+ * Derruba o cache da gestão. Chamada por toda escrita, do painel e do aluno:
+ * pedido novo e pagamento precisam aparecer no mesmo segundo, e é isso que a
+ * demonstração mostra.
+ */
+export function invalidarPainel() {
+  revalidateTag(TAG_PAINEL);
+}
+
+export function emCache<A extends (string | undefined)[], R>(
+  chave: string,
+  consulta: (...args: A) => Promise<R>,
+) {
+  return cache((...args: A) =>
+    unstable_cache(() => consulta(...args), [chave, ...args.map((a) => a ?? "")], {
+      tags: [TAG_PAINEL],
+      revalidate: 120,
+    })(),
+  );
+}
 
 export type ClienteResumo = {
   id: string;
@@ -150,14 +190,14 @@ export type TurmaPainel = {
 // Clientes · home do painel
 // ------------------------------------------------------------
 
-export async function listarClientes(busca?: string): Promise<ClienteResumo[]> {
+export const listarClientes = emCache("clientes", async (busca?: string): Promise<ClienteResumo[]> => {
   let q = db().from("vw_cliente_resumo").select("*").order("nome");
   if (busca?.trim()) q = q.ilike("nome", `%${busca.trim()}%`);
   const { data } = await q.returns<ClienteResumo[]>();
   return data ?? [];
-}
+});
 
-export const buscarCliente = cache(async (id: string): Promise<ClienteResumo | null> => {
+export const buscarCliente = emCache("cliente", async (id: string): Promise<ClienteResumo | null> => {
   const { data } = await db()
     .from("vw_cliente_resumo")
     .select("*")
@@ -170,7 +210,7 @@ export const buscarCliente = cache(async (id: string): Promise<ClienteResumo | n
 // Campanhas
 // ------------------------------------------------------------
 
-export async function listarCampanhas(clienteId: string): Promise<CampanhaResumo[]> {
+export const listarCampanhas = emCache("campanhas", async (clienteId: string): Promise<CampanhaResumo[]> => {
   const { data } = await db()
     .from("vw_campanha_resumo")
     .select("*")
@@ -178,9 +218,63 @@ export async function listarCampanhas(clienteId: string): Promise<CampanhaResumo
     .order("nome")
     .returns<CampanhaResumo[]>();
   return data ?? [];
+});
+
+/**
+ * Todas as campanhas de todos os clientes, numa consulta só.
+ *
+ * A home mostra em cada card a campanha que está rolando, e `vw_cliente_resumo`
+ * não carrega isso: ela soma tudo e devolve só a contagem. Buscar campanha por
+ * cliente seria uma viagem ao banco por card.
+ *
+ * Devolve lista, e não `Map` agrupado, porque `unstable_cache` serializa o
+ * retorno: `Map` volta como objeto vazio na segunda leitura, e a tela quebrava
+ * só depois do primeiro acesso. Estrutura que passa por JSON, sempre.
+ *
+ * ponytail: traz a tabela inteira e filtra em memória. São dezenas de linhas,
+ * não milhares. Quando passar de algumas centenas, vira uma view com
+ * `distinct on (cliente_id)`.
+ */
+export const listarTodasCampanhas = emCache(
+  "campanhas-todas",
+  async (): Promise<CampanhaResumo[]> => {
+    const { data } = await db()
+      .from("vw_campanha_resumo")
+      .select("*")
+      .order("nome")
+      .returns<CampanhaResumo[]>();
+    return data ?? [];
+  },
+);
+
+/** Ordem de interesse. Aberta na frente; concluída é a que ninguém procura. */
+const PESO_STATUS: Record<CampanhaResumo["status"], number> = {
+  aberta: 0,
+  rascunho: 1,
+  encerrada: 2,
+  concluida: 3,
+};
+
+/**
+ * A campanha que o cliente abre.
+ *
+ * Aberta ganha de qualquer outra; entre duas abertas, ganha a de prazo mais
+ * próximo, que é a que corre risco. Sem prazo vai para o fim, porque campanha
+ * sem data não tem urgência nenhuma.
+ */
+export function campanhaEmDestaque(campanhas: CampanhaResumo[], clienteId: string) {
+  return (
+    campanhas
+      .filter((c) => c.cliente_id === clienteId)
+      .sort(
+        (a, b) =>
+          PESO_STATUS[a.status] - PESO_STATUS[b.status] ||
+          (a.prazo_pedidos ?? "9999").localeCompare(b.prazo_pedidos ?? "9999"),
+      )[0] ?? null
+  );
 }
 
-export const buscarCampanha = cache(async (id: string): Promise<CampanhaResumo | null> => {
+export const buscarCampanha = emCache("campanha", async (id: string): Promise<CampanhaResumo | null> => {
   const { data } = await db()
     .from("vw_campanha_resumo")
     .select("*")
@@ -189,7 +283,7 @@ export const buscarCampanha = cache(async (id: string): Promise<CampanhaResumo |
   return data ?? null;
 });
 
-export async function listarGrupos(campanhaId: string): Promise<GrupoResumo[]> {
+export const listarGrupos = emCache("grupos", async (campanhaId: string): Promise<GrupoResumo[]> => {
   const { data } = await db()
     .from("vw_grupo_resumo")
     .select("*")
@@ -197,14 +291,14 @@ export async function listarGrupos(campanhaId: string): Promise<GrupoResumo[]> {
     .order("nome")
     .returns<GrupoResumo[]>();
   return data ?? [];
-}
+});
 
 /**
  * Turma (grupo) com a campanha junto. As duas coisas aparecem no cabeçalho da
  * planilha, e separar em duas chamadas na página deixava o `notFound` em dois
  * lugares diferentes.
  */
-export const buscarTurmaPainel = cache(async (id: string): Promise<TurmaPainel | null> => {
+export const buscarTurmaPainel = emCache("turma", async (id: string): Promise<TurmaPainel | null> => {
   const { data: grupo } = await db()
     .from("vw_grupo_resumo")
     .select("*")
@@ -224,7 +318,8 @@ export const buscarTurmaPainel = cache(async (id: string): Promise<TurmaPainel |
  * É por aqui que o representante entra: ele não navega por cliente nem por
  * campanha, ele já está dentro de uma turma e o código é o que ele tem na mão.
  */
-export const buscarTurmaPorCodigo = cache(
+export const buscarTurmaPorCodigo = emCache(
+  "turma-codigo",
   async (codigo: string): Promise<TurmaPainel | null> => {
     const { data } = await db()
       .from("grupo")
@@ -273,7 +368,8 @@ async function comItens(pedidos: PedidoPainel[]): Promise<PedidoPainel[]> {
  * Quem não pagou é justamente quem precisa aparecer, é dele que se cobra.
  * A aba Produção filtra por `pode_produzir` na própria página.
  */
-export const listarPedidosDaTurma = cache(
+export const listarPedidosDaTurma = emCache(
+  "pedidos-turma",
   async (grupoId: string): Promise<PedidoPainel[]> => {
     const { data } = await db()
       .from("vw_pedido")
@@ -293,7 +389,8 @@ export const listarPedidosDaTurma = cache(
  * Serve o bloco "precisa de atenção" da E3, que é uma lista de cobrança: sem o
  * nome da turma, o número de telefone não ajuda ninguém a saber com quem falar.
  */
-export const listarPedidosDaCampanha = cache(
+export const listarPedidosDaCampanha = emCache(
+  "pedidos-campanha",
   async (campanhaId: string): Promise<(PedidoPainel & { grupo_nome: string })[]> => {
     const { data: grupos } = await db()
       .from("grupo")
@@ -347,7 +444,7 @@ export async function resumoDeCorte(
   return data ?? [];
 }
 
-export const buscarPedido = cache(async (id: string): Promise<PedidoPainel | null> => {
+export const buscarPedido = emCache("pedido", async (id: string): Promise<PedidoPainel | null> => {
   const { data } = await db()
     .from("vw_pedido")
     .select("*")
@@ -360,7 +457,7 @@ export const buscarPedido = cache(async (id: string): Promise<PedidoPainel | nul
 });
 
 /** Parcelas do pedido com as baixas dentro. Alimenta o detalhe. */
-export const listarParcelas = cache(async (pedidoId: string): Promise<ParcelaPainel[]> => {
+export const listarParcelas = emCache("parcelas", async (pedidoId: string): Promise<ParcelaPainel[]> => {
   const { data: parcelas } = await db()
     .from("vw_parcela")
     .select("*")

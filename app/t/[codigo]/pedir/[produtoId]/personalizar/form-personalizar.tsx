@@ -119,7 +119,7 @@ export function FormPersonalizar({
           etiqueta="Nome da estampa"
           value={nome}
           onChange={(e) => setNome(e.target.value.slice(0, maxCaracteres))}
-          placeholder="Fernandes"
+          placeholder="Nome que vai bordado"
           autoComplete="off"
           autoCapitalize="words"
           spellCheck={false}
@@ -132,7 +132,7 @@ export function FormPersonalizar({
           value={confirma}
           onChange={(e) => setConfirma(e.target.value.slice(0, maxCaracteres))}
           onPaste={(e) => e.preventDefault()}
-          placeholder="Fernandes"
+          placeholder="Digite o mesmo nome"
           autoComplete="off"
           autoCapitalize="words"
           spellCheck={false}
@@ -168,7 +168,7 @@ export function FormPersonalizar({
                     onChange={(e) =>
                       setExtras((v) => ({ ...v, [i]: e.target.value.slice(0, maxCaracteres) }))
                     }
-                    placeholder="Nome desta peça"
+                    placeholder="Nome só desta peça"
                     className="h-9 w-full rounded-md border border-line bg-surface px-2.5
                       text-center text-body-sm outline-none
                       transition-[border-color] duration-base ease-soft focus:border-brand-deep"

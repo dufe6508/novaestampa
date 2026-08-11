@@ -1,4 +1,3 @@
-import Link from "next/link";
 import {
   cancelarPedido,
   estornarPagamento,
@@ -18,7 +17,8 @@ import { Entrada } from "./campos";
 import { FormAcao } from "./form-acao";
 import { Escolha } from "./escolha";
 import { SeloPagamento, SeloProducao } from "./selo";
-import { Seta, X } from "./icones";
+import { Gaveta } from "./gaveta";
+import { Seta } from "./icones";
 
 /**
  * Detalhe do pedido. Abre por cima da lista, com o pedido na URL.
@@ -140,41 +140,13 @@ export async function DetalhePedido({
   const telefone = pedido.aluno_telefone?.replace(/\D/g, "");
 
   return (
-    <>
-      {/* Fundo. É um link para o mesmo lugar sem o pedido: clicar fora fecha. */}
-      <Link
-        href={fechar}
-        scroll={false}
-        aria-label="Fechar detalhe"
-        className="fixed inset-0 z-40 bg-ink/15"
-      />
-
-      <aside
-        aria-label={`Pedido de ${pedido.aluno_nome}`}
-        className="surge fixed inset-y-0 right-0 z-50 flex w-full max-w-sm flex-col border-l
-          border-line bg-surface shadow-lift"
-      >
-        <header className="flex items-start justify-between gap-2 px-4 py-3.5">
-          <div className="flex min-w-0 flex-col gap-0.5">
-            <h2 className="truncate text-h2">{pedido.aluno_nome}</h2>
-            <p className="truncate text-caption text-muted">
-              {labelGrupo} {turma} · {campanha}
-            </p>
-          </div>
-          <Link
-            href={fechar}
-            scroll={false}
-            aria-label="Fechar"
-            className="-mr-1 flex size-8 shrink-0 items-center justify-center rounded-md
-              text-muted transition-colors duration-fast ease-soft hover:bg-surface-2
-              hover:text-ink"
-          >
-            <X className="h-4 w-4" />
-          </Link>
-        </header>
-
-        <div className="flex flex-1 flex-col overflow-y-auto">
-          {/* Identificação. Tudo que se confere ao telefone, numa linha só. */}
+    <Gaveta
+      rotulo={`Pedido de ${pedido.aluno_nome}`}
+      titulo={pedido.aluno_nome}
+      subtitulo={`${labelGrupo} ${turma} · ${campanha}`}
+      fechar={fechar}
+    >
+      {/* Identificação. Tudo que se confere ao telefone, numa linha só. */}
           <dl className="flex flex-wrap gap-x-8 gap-y-3 px-4 pb-4">
             <div>
               <dt className="label text-muted">Telefone</dt>
@@ -392,8 +364,6 @@ export async function DetalhePedido({
               </div>
             </Abre>
           </div>
-        </div>
-      </aside>
-    </>
+    </Gaveta>
   );
 }

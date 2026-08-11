@@ -4,8 +4,16 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db, mensagem } from "@/lib/supabase";
 import { concederAcesso } from "@/lib/empresa";
-import { sessao } from "@/lib/sessao";
-import { capitalizarFrase, capitalizarNome } from "@/lib/formato";
+import { abrirSessao, sessao } from "@/lib/sessao";
+import { entrar as entrarComConta } from "@/lib/aluno";
+import { invalidarPainel } from "@/lib/painel";
+import {
+  capitalizarFrase,
+  capitalizarNome,
+  mascaraTelefone,
+  nomeCompletoValido,
+  telefoneValido,
+} from "@/lib/formato";
 
 /**
  * Escrita da área de gestão.
@@ -53,6 +61,7 @@ const erro = mensagem;
  */
 function atualizar() {
   revalidatePath("/", "layout");
+  invalidarPainel();
 }
 
 const METODOS = ["pix", "cartao", "dinheiro", "transferencia", "outro"] as const;
@@ -275,6 +284,55 @@ export async function editarItem(_estado: string | null, dados: FormData) {
   atualizar();
 }
 
+const TIPOS_CLIENTE = ["escola", "faculdade", "empresa", "outro"] as const;
+
+/**
+ * Cadastra a escola, faculdade ou empresa.
+ *
+ * Só o nome é obrigatório. Cidade e contato ajudam a diferenciar duas escolas de
+ * nome parecido (o banco tem duas "Cláudio Brandão"), mas exigir os dois na hora
+ * de criar trava quem só quer começar a campanha e busca o telefone depois.
+ *
+ * Termina dentro do cliente recém-criado, e não de volta na lista: quem acabou
+ * de cadastrar a escola vai criar a campanha dela em seguida.
+ */
+export async function criarCliente(_estado: string | null, dados: FormData) {
+  const barrado = await semSessao();
+  if (barrado) return barrado;
+
+  const nome = capitalizarNome(String(dados.get("nome") ?? ""));
+  if (nome.length < 2) return "Escreva o nome do cliente.";
+
+  const tipoBruto = String(dados.get("tipo") ?? "escola");
+  const tipo = TIPOS_CLIENTE.includes(tipoBruto as (typeof TIPOS_CLIENTE)[number])
+    ? tipoBruto
+    : "escola";
+
+  const cidade = capitalizarNome(String(dados.get("cidade") ?? "")) || null;
+  const contato = capitalizarNome(String(dados.get("contato_nome") ?? "")) || null;
+  const telefone = String(dados.get("contato_telefone") ?? "").trim() || null;
+
+  if (telefone && !telefoneValido(telefone))
+    return "Digite o telefone com DDD, como em (31) 999848388.";
+
+  const { data, error } = await db()
+    .from("cliente")
+    .insert({
+      nome,
+      tipo,
+      cidade,
+      contato_nome: contato,
+      contato_telefone: telefone,
+    })
+    .select("id")
+    .single<{ id: string }>();
+
+  if (error) return erro(error);
+
+  atualizar();
+  redirect(`/painel/cliente/${data.id}`);
+}
+
 /**
  * A porta da área da empresa.
  *
@@ -296,6 +354,45 @@ export async function entrarNaEmpresa(_estado: string | null, dados: FormData) {
 
   const { erro: falha } = await concederAcesso(quem.id, codigo);
   if (falha) return falha;
+
+  revalidatePath("/painel", "layout");
+  redirect("/painel");
+}
+
+/**
+ * A mesma porta, para quem ainda não tem conta nenhuma.
+ *
+ * Cria (ou reencontra) o perfil pelo e-mail, abre a sessão e só então usa o
+ * código. A ordem importa: o acesso gruda na conta, então a conta precisa
+ * existir antes.
+ *
+ * O código é conferido **depois** de criar a conta, e isso é de propósito.
+ * Conferir antes exigiria uma função nova no banco só para testar o código sem
+ * conceder nada, e o efeito de errar seria idêntico: uma conta de aluno comum,
+ * sem acesso a coisa nenhuma. Errar o código aqui não deixa lixo perigoso, só um
+ * perfil que qualquer pessoa criaria entrando por uma turma.
+ */
+export async function entrarNaEmpresaComConta(_estado: string | null, dados: FormData) {
+  const nome = capitalizarNome(String(dados.get("nome") ?? ""));
+  const email = String(dados.get("email") ?? "").trim();
+  const telefone = String(dados.get("telefone") ?? "").trim();
+  const codigo = String(dados.get("codigo") ?? "").trim();
+
+  if (!nomeCompletoValido(nome)) return "Digite seu nome e o sobrenome.";
+  if (!email.includes("@")) return "Digite um e-mail válido, com @.";
+  if (telefone && !telefoneValido(telefone))
+    return "Digite o telefone com DDD, como em (31) 999848388.";
+  if (!codigo) return "Digite o código da empresa.";
+
+  const conta = await entrarComConta(nome, email, telefone ? mascaraTelefone(telefone) : null);
+  if (conta.erro) return conta.erro;
+
+  const { erro: falha } = await concederAcesso(conta.perfilId!, codigo);
+  if (falha) return falha;
+
+  // Só abre a sessão depois de o código passar. Errou o código, a pessoa
+  // continua deslogada e a tela pede de novo, sem ter virado meio-usuário.
+  await abrirSessao({ id: conta.perfilId!, nome });
 
   revalidatePath("/painel", "layout");
   redirect("/painel");

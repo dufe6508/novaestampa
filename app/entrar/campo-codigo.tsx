@@ -12,6 +12,10 @@ import { useActionState, useState } from "react";
  * O filtro já descartou 0 e 1 um dia, quando o código era sempre gerado pelo sistema. Caiu
  * quando o admin passou a escolher o código na mão: uma turma que quer "1234" ficava sem
  * conseguir digitar o próprio código.
+ *
+ * `autoFoco` existe porque o campo nem sempre é a primeira coisa da página: com a
+ * apresentação ligada ele fica lá embaixo, e focar no carregamento jogaria a rolagem para
+ * o fim antes de o aluno ver qualquer coisa.
  */
 
 const INVALIDOS = /[^A-Z0-9]/g;
@@ -20,8 +24,10 @@ const MAX = 10;
 
 export function CampoCodigo({
   acao,
+  autoFoco = false,
 }: {
   acao: (estado: string | null, formData: FormData) => Promise<string | undefined>;
+  autoFoco?: boolean;
 }) {
   const [erro, formAction, pendente] = useActionState(
     async (estado: string | null, formData: FormData) => (await acao(estado, formData)) ?? null,
@@ -45,14 +51,14 @@ export function CampoCodigo({
           onChange={(e) =>
             setCodigo(e.target.value.toUpperCase().replace(INVALIDOS, "").slice(0, MAX))
           }
-          autoFocus
+          autoFocus={autoFoco}
           autoComplete="off"
           autoCapitalize="characters"
           spellCheck={false}
           enterKeyHint="go"
           aria-invalid={erro ? true : undefined}
           aria-describedby={erro ? "codigo-erro" : undefined}
-          placeholder="1234"
+          placeholder="ABC123"
           className={`h-12 w-full rounded-lg border bg-surface text-center font-mono text-xl
             font-semibold tracking-[0.2em] text-ink outline-none
             transition-[border-color,box-shadow] duration-base ease-soft

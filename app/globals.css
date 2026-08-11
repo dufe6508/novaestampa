@@ -103,6 +103,8 @@
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
+    /* Âncora não teleporta. A regra de reduced-motion lá embaixo desliga isto. */
+    scroll-behavior: smooth;
   }
 
   body {

@@ -68,6 +68,11 @@ export function Kpis({ children }: { children: React.ReactNode }) {
 /**
  * Barra de progresso. Sempre acompanhada do número em texto: barra sozinha
  * comunica "mais ou menos", e cobrança não se faz com mais ou menos.
+ *
+ * Trilho em `line`, e não em `surface-2`. O tom anterior era quase invisível no
+ * branco do card, então só o pedaço preenchido aparecia, e logo abaixo de um
+ * número grande ele lia como sublinhado do número. Com o trilho à mostra, a
+ * peça volta a ser medidor.
  */
 export function Barra({
   parte,
@@ -88,7 +93,7 @@ export function Barra({
       aria-valuemin={0}
       aria-valuemax={100}
       aria-label="Progresso"
-      className="h-1.5 w-full overflow-hidden rounded-full bg-surface-2"
+      className="h-1 w-full overflow-hidden rounded-full bg-line"
     >
       <div
         className={`h-full rounded-full transition-[width] duration-slow ease-soft ${cor}`}

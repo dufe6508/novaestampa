@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { mensagem, publico } from "./supabase";
+import { emCache, invalidarPainel } from "./painel";
 
 export { reais, tamanhoLegivel } from "./formato";
 
@@ -82,10 +83,17 @@ export type Pedido = {
 };
 
 /**
- * `cache` deduplica dentro do mesmo request: o layout e a página pedem a mesma
- * coisa e o banco responde uma vez só.
+ * Catálogo em cache, não só deduplicado no request.
+ *
+ * Turma, produtos e peças são iguais para a turma inteira e mudam quando o
+ * admin mexe, não a cada visita. Sem isso, cada tela do aluno pagava de novo os
+ * cerca de 300 ms de viagem até o banco para reler a mesma coisa. Quem escreve
+ * chama `invalidarPainel`, que derruba isto junto.
+ *
+ * O que é de cada aluno (`meusPedidos`, perfil) fica de fora de propósito: ali
+ * o dado é por pessoa e muda no segundo em que ele paga.
  */
-export const buscarTurma = cache(async (codigo: string): Promise<Turma | null> => {
+export const buscarTurma = emCache("turma-publica", async (codigo: string): Promise<Turma | null> => {
   const { data } = await publico()
     .from("vw_turma_publica")
     .select("*")
@@ -94,7 +102,7 @@ export const buscarTurma = cache(async (codigo: string): Promise<Turma | null> =
   return data ?? null;
 });
 
-export async function listarProdutos(campanhaId: string): Promise<Produto[]> {
+export const listarProdutos = emCache("produtos", async (campanhaId: string): Promise<Produto[]> => {
   const { data } = await publico()
     .from("vw_produto_publico")
     .select("*")
@@ -102,9 +110,9 @@ export async function listarProdutos(campanhaId: string): Promise<Produto[]> {
     .order("ordem")
     .returns<Produto[]>();
   return data ?? [];
-}
+});
 
-export async function buscarProduto(campanhaId: string, id: string): Promise<Produto | null> {
+export const buscarProduto = emCache("produto", async (campanhaId: string, id: string): Promise<Produto | null> => {
   const { data } = await publico()
     .from("vw_produto_publico")
     .select("*")
@@ -112,10 +120,10 @@ export async function buscarProduto(campanhaId: string, id: string): Promise<Pro
     .eq("id", id)
     .maybeSingle<Produto>();
   return data ?? null;
-}
+});
 
 /** Peças de um kit, na ordem de exibição. Produto simples devolve lista vazia. */
-export async function listarPecas(kitId: string): Promise<Peca[]> {
+export const listarPecas = emCache("kit", async (kitId: string): Promise<Peca[]> => {
   const { data } = await publico()
     .from("vw_kit_publico")
     .select("*")
@@ -123,7 +131,7 @@ export async function listarPecas(kitId: string): Promise<Peca[]> {
     .order("ordem")
     .returns<Peca[]>();
   return data ?? [];
-}
+});
 
 export const meusPedidos = cache(
   async (perfilId: string, codigo: string): Promise<Pedido[]> => {
@@ -167,7 +175,9 @@ export async function atualizarTelefone(perfilId: string, telefone: string) {
     p_perfil_id: perfilId,
     p_telefone: telefone,
   });
-  return error ? { erro: mensagem(error) } : {};
+  if (error) return { erro: mensagem(error) };
+  invalidarPainel();
+  return {};
 }
 
 export async function criarPedido(
@@ -183,6 +193,7 @@ export async function criarPedido(
     p_itens: itens,
   });
   if (error) return { erro: mensagem(error) };
+  invalidarPainel();
   return { pedidoId: data as string };
 }
 
@@ -192,7 +203,9 @@ export async function pagar(perfilId: string, parcelaId: string, metodo: string)
     p_parcela_id: parcelaId,
     p_metodo: metodo,
   });
-  return error ? { erro: mensagem(error) } : {};
+  if (error) return { erro: mensagem(error) };
+  invalidarPainel();
+  return {};
 }
 
 /** Quita todas as parcelas em aberto do pedido de uma vez. */
@@ -202,7 +215,9 @@ export async function pagarPedido(perfilId: string, pedidoId: string, metodo: st
     p_pedido_id: pedidoId,
     p_metodo: metodo,
   });
-  return error ? { erro: mensagem(error) } : {};
+  if (error) return { erro: mensagem(error) };
+  invalidarPainel();
+  return {};
 }
 
 export async function editarItem(
@@ -217,7 +232,9 @@ export async function editarItem(
     p_tamanho: tamanho,
     p_nome: nome,
   });
-  return error ? { erro: mensagem(error) } : {};
+  if (error) return { erro: mensagem(error) };
+  invalidarPainel();
+  return {};
 }
 
 /** "23 de setembro". Data do Postgres vem como 'YYYY-MM-DD', sem fuso. */

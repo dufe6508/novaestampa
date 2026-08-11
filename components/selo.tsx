@@ -58,6 +58,23 @@ const PRODUCAO: Record<Pedido["status_producao"], { texto: string; tom: Tom }> =
   entregue: { texto: "Entregue", tom: "neutro" },
 };
 
+/**
+ * Estado da campanha. `rascunho` fica em atenção, e não em neutro, de propósito:
+ * campanha em rascunho não recebe pedido, e descobrir isso só quando o aluno
+ * reclama é tarde demais.
+ */
+const CAMPANHA: Record<string, { texto: string; tom: Tom }> = {
+  aberta: { texto: "Aberta", tom: "ok" },
+  rascunho: { texto: "Rascunho", tom: "atencao" },
+  encerrada: { texto: "Encerrada", tom: "neutro" },
+  concluida: { texto: "Concluída", tom: "neutro" },
+};
+
+export function SeloCampanha({ status }: { status: string }) {
+  const s = CAMPANHA[status] ?? CAMPANHA.encerrada;
+  return <Base tom={s.tom}>{s.texto}</Base>;
+}
+
 export function SeloPagamento({ status }: { status: Pedido["status_pagamento"] }) {
   const s = PAGAMENTO[status];
   return <Base tom={s.tom}>{s.texto}</Base>;

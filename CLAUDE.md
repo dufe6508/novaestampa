@@ -79,9 +79,11 @@ Cliente        (escola / faculdade / empresa)
   três mercados sem mudar schema.
 - **Campanha é a unidade de operação, não o cliente.** A mesma escola faz formatura em 2026 e
   2027, com produtos e preços diferentes. Cliente é cadastro; campanha é onde tudo acontece.
-- **`grupo.alunos_esperados`** (int, opcional): sem cadastro prévio o sistema não sabe quem
-  *falta* pedir. O admin informa quantos alunos o grupo tem e isso devolve a métrica de
-  adesão ("3B: 28 de 34 · 82%"). Um campo, alto valor.
+- **`grupo.alunos_esperados`** (int, opcional): a coluna existe no schema mas **saiu da
+  interface em 10/08/2026**. Ela sustentava a métrica de adesão, e adesão exigia alguém
+  informar quantos alunos a turma tem, o que ninguém fez. No lugar entrou **pedidos
+  quitados**, que os próprios pedidos respondem. Contagem de alunos é por nome distinto:
+  quem fez dois pedidos conta como uma pessoa.
 
 **Volume de referência:** uma escola gerou ~420 pedidos de camisa + ~170 de moletom,
 12 turmas. Ordem de grandeza: ~600 pedidos por campanha.
@@ -164,7 +166,10 @@ login normal → /painel pede o código → acertou → perfil.tipo = 'empresa' 
 ```
 
 - O código fica na tabela `empresa_config` (linha única), **guardado só como hash**
-  (`pgcrypto`/bcrypt), nunca em texto puro. Código inicial do protótipo: `NOVAESTAMPA2026`.
+  (`pgcrypto`/bcrypt), nunca em texto puro. Código do protótipo: **`NE2026`**, trocado em
+  10/08/2026. O anterior (`NOVAESTAMPA2026`) era longo demais: 15 caracteres não cabiam no
+  campo, que é centralizado e com espaçamento de letra. Código digitado no celular tem que
+  ser curto.
 - Comparação normalizada (`upper(trim())`), código digitado no celular não pode falhar por
   maiúscula ou espaço sobrando.
 - **O acesso gruda na conta, não no código.** Trocar o código invalida apenas para quem ainda
@@ -179,6 +184,21 @@ login normal → /painel pede o código → acertou → perfil.tipo = 'empresa' 
 **Ressalva registrada:** código compartilhado vaza por natureza (alguém repassa "só pra ver").
 O desenho acima limita o dano e torna a rotação viável, mas não substitui papéis reais, que
 vêm com a auth definitiva.
+
+**A empresa entra pela mesma tela do aluno** (decidido em 10/08/2026). Em `/entrar`, o
+código digitado é procurado primeiro como turma; não sendo turma, e havendo sessão, é
+tentado como código da empresa, e acertar leva ao painel. Quem ainda não tem conta usa o
+link "Área da empresa" embaixo do card, e `/painel/entrar` sem sessão pede nome, e-mail e
+código de uma vez, cria a conta e concede o acesso no mesmo envio.
+
+O 404 de `/painel/entrar` sem sessão **caiu junto**. A partir do momento em que o código
+abre a porta na tela pública, esconder o endereço não protegia mais nada, e o preço era a
+dona não conseguir entrar sem alguém digitar a URL por ela. O que protege é o código.
+
+**Depende da service role.** `conceder_acesso_empresa` não tem grant para `anon`, então a
+porta só funciona com `SUPABASE_SERVICE_ROLE_KEY` preenchida no `.env.local`. Sem ela o
+`db()` cai na chave pública e o erro é `42501 permission denied for function`, que a tela
+mostra como "Não consegui completar agora".
 
 - **Níveis de permissão dentro da empresa ainda não existem.** Quem entra com o código é
   admin/representante no mesmo nível.
@@ -292,9 +312,14 @@ ref `iuqsjpqyxmpauwoexmgv`, região `sa-east-1` (São Paulo).
 - Schema: **[SCHEMA.sql](SCHEMA.sql)**, aplicado como migration `schema_inicial`
 - Dados de demo: **[SEED.sql](SEED.sql)**, reexecutável; apaga e recria
 
-Estado atual do seed: 3 clientes · 3 campanhas · 18 grupos · 9 produtos · 447 pedidos ·
-540 itens · 894 parcelas · 560 pagamentos. Distribuição de pagamento: 189 pagos, 182 parciais,
-65 atrasados, 11 pendentes. Adesão por turma variando de 57% a 93%.
+Turma de demonstração: **3A, código `CB3A`**, 35 pedidos de 31 alunos, com mistura de
+quitado, parcial, atrasado e sem pagamento nenhum, e gente com dois pedidos.
+
+O seed tem uma sujeira conhecida: duas escolas quase iguais ("Cláudio Brandão" e "Professor
+Cláudio Brandão"), a segunda quase vazia. O usuário foi avisado e não pediu limpeza.
+
+**Kit desativado** (`produto.ativo = false`): o usuário tirou a venda casada por enquanto. O
+código do fluxo de kit continua de pé.
 
 Convenções que valem para todo o código:
 
@@ -303,8 +328,10 @@ Convenções que valem para todo o código:
 - **Status de pagamento é derivado**, nunca digitado. Vem das views.
 - **Snapshot de nome e preço** no pedido e no item: alterar o produto depois não pode
   reescrever histórico financeiro.
-- **RLS ligada em todas as tabelas, sem policies.** Nenhuma tabela é legível pela chave
-  pública.
+- **RLS DESLIGADA em todas as tabelas** (migration `rls_off_e_agregados_do_painel`), por
+  decisão do usuário: protótipo fora do ar, auth definitiva só depois da reunião. **Não
+  propor religar.** Reverter é `enable row level security` nas mesmas tabelas, e nada do
+  código quebra.
 
 **Como o aluno lê sem service role.** As tabelas continuam fechadas; o que abre são três
 views que rodam como dono e expõem só as colunas necessárias:
@@ -333,7 +360,9 @@ Views que as telas consomem (não montar esses cálculos na aplicação):
 | `vw_parcela` | parcela + pago/saldo + status |
 | `vw_producao` | uma linha por **peça liberada** · é a lista que exporta |
 | `vw_resumo_corte` | "Camiseta M: 40" agrupado por grupo/produto/tamanho |
-| `vw_grupo_resumo` | pedidos, adesão e financeiro por grupo · alimenta os cards do painel |
+| `vw_grupo_resumo` | pedidos, alunos, quitados, financeiro e atraso por grupo |
+| `vw_campanha_resumo` | o mesmo somado por campanha |
+| `vw_cliente_resumo` | o mesmo somado por cliente · alimenta a home do painel |
 
 Um trigger em `pagamento` move `status_producao` de `aguardando` para `liberado` quando a
 parcela de entrada é quitada. O admin também pode forçar liberação (`producao_forcada`),
@@ -354,8 +383,18 @@ Server Components + Server Actions cobrem o necessário.
 
 ### 3.8 Exportação
 
-Formato escolhido **no momento da exportação**: `xlsx`, `PDF` ou `CSV`. Detalhes do layout
-serão definidos depois.
+**Resolvido em 10/08/2026.** Exporta `.xlsx` no **modelo de papel que a empresa já usa**
+(o usuário mandou o arquivo original). Regra: não alterar nenhum campo do modelo.
+
+- Um arquivo por produto, uma **aba por tamanho**. Tamanho que ninguém pediu não vira aba
+- Ordem da grade (PP, P, M, G, GG, XG), baby look inteira depois. `BL M` vira "M Baby Look"
+- Coluna A **Assinatura** com o nome completo, coluna B **Nome ou Apelido** com o que vai
+  bordado. As duas já saem preenchidas
+- Mínimo de **16 linhas**, mesmo em branco: é onde entra quem chegou depois
+- A4 retrato, colunas de largura igual, tabela centralizada, dimensionada para preencher a
+  folha impressa
+- Sem biblioteca: `lib/planilha/xlsx.ts` escreve o zip à mão. Os estilos vivem em
+  `lib/planilha/modelo.ts`, copiados byte a byte do arquivo do usuário. **Não editar**
 
 Conteúdo previsto da lista de produção: nome completo, produto, tamanho, nome personalizado,
 quantidade, observações, status do pagamento. Cabeçalho com cliente, grupo, campanha e data.
@@ -443,20 +482,60 @@ view pública. Aguardando autorização para mexer no schema.
 
 **Home = tela de clientes**, com busca.
 
-| # | Tela | Função |
-|---|---|---|
-| E1 | **Clientes (home)** | grade de cards + busca |
-| E2 | Cliente | campanhas daquele cliente |
-| E3 | Campanha | adesão, financeiro, alertas, lista de grupos |
-| E4 | Grupo | abas **Pedidos** e **Produção** |
-| E5 | Pedido | detalhe, registrar pagamento, liberar produção |
-| E6 | Novo pedido manual | quem pagou em dinheiro |
-| E7 | Produtos da campanha | inclui montar kit |
-| E8 | Grupos da campanha | código, alunos esperados |
-| E9 | Exportar | formato + conteúdo |
+| # | Tela | Função | Estado |
+|---|---|---|---|
+| E1 | **Clientes (home)** | cards + busca + coluna de totais + criar | pronta |
+| E2 | Cliente | campanha ativa aberta, com as turmas dentro | pronta (turmas a fazer) |
+| E3 | Campanha | financeiro, quitados, três listas de cobrança, lista de grupos | pronta |
+| E4 | Grupo | abas **Pedidos** e **Produção** | pronta |
+| E5 | Pedido | detalhe, registrar pagamento, liberar produção | pronta, painel lateral sobre a E4 |
+| E6 | Novo pedido manual | quem pagou em dinheiro | **falta** |
+| E7 | Produtos da campanha | cadastro com foto | **falta** |
+| E8 | Grupos da campanha | código de acesso | **falta** |
+| E9 | Exportar | xlsx no modelo de papel da empresa | pronta |
+| E10 | Criar cliente · criar campanha | prazos, entrada, labels | cliente pronto, campanha **falta** |
 
-**Configurações** é uma aba, não uma tela solta. Dentro dela: **Acesso da empresa** (trocar o
-código, ver contas com acesso, revogar) e o que mais for surgindo.
+**Estrutura do painel, decidida em 10/08/2026** (o painel anterior foi mantido como
+base e reorganizado, não descartado):
+
+```
+/painel                 Clientes, um card por escola     ← home
+/painel/cliente/[id]    campanha ativa já aberta + turmas
+/painel/campanha/[id]   visão geral · turmas · pedidos · produção · produtos
+/painel/turma/[id]      pedidos · produção · exportar
+```
+
+- **Home é Clientes**, não campanhas: é assim que a dona pensa. Cada card carrega a
+  campanha em andamento com nome e prazo, porque o clique entra nela.
+- **Ao abrir a escola, a campanha ativa já vem aberta**, com as turmas listadas. As outras
+  campanhas ficam num seletor no topo. Uma escola tem uma campanha viva por vez, então o
+  passo do meio some sem sumir do modelo. Entre duas abertas, ganha a de prazo mais próximo.
+- **Turma pertence à campanha.** Não é destino solto do menu.
+- **Tudo que cria abre em painel lateral** (`components/gaveta.tsx`), com o que está aberto
+  na URL (`?novo=1`). O detalhe do pedido, que inventou o padrão, passou a usar a mesma casca.
+- **A coluna da direita é a mesma forma nos três níveis**, trocando só o escopo do total:
+  empresa inteira na home, campanha no cliente, turma na turma.
+- Rótulo do grupo sai da campanha (`label_grupo_plural`): a Vega mostra "3 setores", a
+  escola mostra "12 turmas".
+- Status da campanha aparece **em palavra**, não só em cor: Aberta, Rascunho, Encerrada.
+- Os totais da home somam **a lista filtrada**: buscar "Cláudio" e ver o total geral no
+  lado seria o número mentindo sobre o que está na tela.
+
+**Armadilha registrada:** `emCache` (`unstable_cache`) serializa o retorno. Devolver `Map`
+funciona na primeira leitura e volta objeto vazio na segunda. Só estrutura que passa por
+JSON.
+
+**O que falta é tudo que cria alguma coisa.** Leitura e cobrança estão de pé; a jornada da
+demo (§6) começa em "admin cria cliente", e hoje ela só roda porque o seed criou tudo à mão.
+É esse o próximo passo do projeto.
+
+**Configurações saiu do escopo** por decisão do usuário. **Produtos só a Nova Estampa edita**,
+não a comissão nem o representante, o que exige um papel que ainda não existe no banco.
+
+**Três níveis de acesso, já implementados** (ver §3.3): empresa vê tudo em `/painel`,
+representante vê só a turma dele em `/t/[codigo]/gestao`, aluno não vê nada disso. Quem não
+é empresa recebe **404** em `/painel`, nunca uma tela de "sem permissão": negativa confirma
+que o endereço existe. A porta é `/painel/entrar`, fora do grupo protegido.
 
 **Busca em vários lugares é requisito explícito:** procurar clientes, campanhas e, dentro
 delas, alunos, turmas e o que mais fizer sentido. Não é uma busca só, são várias.
@@ -466,7 +545,7 @@ Seções que ainda vão surgir (relatórios, etc.) ficam concentradas na navbar.
 ### 4.3 Navegação
 
 - **Desktop: navbar lateral.**
-- **Mobile: ainda não decidido**, menu suspenso ou barra inferior. Fica para a etapa de UI.
+- **Mobile: `details` nativo**, menu que desliza sem JavaScript, com a mesma navegação.
 
 ---
 
@@ -507,6 +586,29 @@ proposta solta. **Perguntar antes de montar.** Referências ficam em `referencia
 | Movimento | Entrada de conteúdo (`entra`, com atraso por item em lista) e resposta ao toque (`active:scale`). Nada em loop, nada decorativo. Tokens em `globals.css`, e a regra global de `prefers-reduced-motion` zera todos |
 | Navegação · desktop | Barra lateral |
 | Navegação · mobile (admin) | **Menu lateral que desliza.** Mesma navegação do desktop, sem duplicar; cabe seção nova (relatórios etc.) e deixa a altura inteira para a tabela |
+
+### 5.1.1 Cartão de lista no painel · minimalismo, decidido em 11/08/2026
+
+O cartão do cliente estava com cara de template. Quatro regras saíram dali e valem para
+todo cartão de lista do painel (cliente, campanha, turma):
+
+- **Um número manda.** O valor principal em corpo grande; percentual, total e contagem
+  descem para uma legenda em `caption`. A versão anterior dizia a mesma coisa quatro vezes
+  (valor, "de X", percentual e barra) no mesmo tamanho, e nenhuma ganhava.
+- **Sem rótulo em caixa alta acima de número.** `PEDIDOS` sobre `355` gasta uma linha para
+  nomear o que o dado já diz. Vira frase corrida: "de R$ 45.986,40 · 355 pedidos".
+- **Selo só na exceção.** Campanha aberta é o normal e não recebe selo. Só aparecem
+  `Rascunho` (não recebe pedido) e `Encerrada`. Isso tira o ponto colorido de todo cartão e
+  devolve a atenção para o que está fora do padrão.
+- **Sem sombra em cartão de lista.** Já era o que o token mandava (`elevação: card em lista
+  é borda, não sombra`) e o código não cumpria. Ficou borda de 1px, e o hover escurece o
+  traço em vez de levantar a peça.
+
+Também: bloco de total não tem fundo colorido. O vermelho marca o número vencido, nunca a
+moldura, senão o painel inteiro pintado compete com o dado que pede ação.
+
+O trilho da `Barra` é `line`, não `surface-2`: no branco do cartão o tom antigo sumia, só o
+pedaço preenchido aparecia, e embaixo de um número grande ele lia como sublinhado.
 
 **Por que foto na vitrine e SVG no preview** (a combinação é proposital): a foto vende e
 mostra caimento; o SVG garante que o nome apareça sempre na mesma posição, com o mesmo

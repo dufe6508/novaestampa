@@ -4,6 +4,7 @@ import Link from "next/link";
 import {
   PADRAO_TELEFONE,
   PREFIXO_BABY_LOOK,
+  capitalizarDigitando,
   mascaraTelefone,
 } from "@/lib/formato";
 
@@ -163,12 +164,41 @@ export function CampoTelefone(props: React.ComponentProps<typeof Campo>) {
       type="tel"
       inputMode="tel"
       autoComplete="tel"
-      placeholder="(31) 999848388"
+      placeholder="(00) 000000000"
       pattern={PADRAO_TELEFONE}
       aviso="Digite o DDD e o número, como em (31) 999848388."
       {...props}
       onInput={(e) => {
         e.currentTarget.value = mascaraTelefone(e.currentTarget.value);
+      }}
+    />
+  );
+}
+
+/**
+ * Nome próprio, com a inicial subindo enquanto digita.
+ *
+ * "joão fernandes" vira "João Fernandes" na hora, sem esperar o envio. Quem
+ * digita no celular não capitaliza, e ver o nome certo aparecendo é o que faz a
+ * pessoa conferir antes de mandar, ainda mais quando ele vai bordado na peça.
+ *
+ * Sobe só a inicial de cada palavra. O resto das letras fica como veio, então
+ * "MacHado" continua inteiro.
+ *
+ * ponytail: reescreve o valor no próprio input, mesma abordagem do telefone. O
+ * cursor pula para o fim ao editar o meio do texto; vira componente controlado
+ * se isso incomodar de verdade.
+ */
+export function CampoNome(props: React.ComponentProps<typeof Campo>) {
+  return (
+    <Campo
+      autoCapitalize="words"
+      autoComplete="name"
+      {...props}
+      onInput={(e) => {
+        const campo = e.currentTarget;
+        const novo = capitalizarDigitando(campo.value);
+        if (novo !== campo.value) campo.value = novo;
       }}
     />
   );
