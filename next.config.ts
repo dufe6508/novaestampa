@@ -9,6 +9,14 @@ const nextConfig: NextConfig = {
   // a raiz errada. Fixa aqui.
   outputFileTracingRoot: import.meta.dirname,
 
+  // Permite isolar o preview local de outros builds que usam `.next`.
+  // Sem a variável, produção e Vercel continuam no diretório padrão.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
+
+  // A geração paralela é instável neste checkout no Windows e pode deixar
+  // o .next sem arquivos de rota. Um worker torna o build determinístico.
+  experimental: { cpus: 1 },
+
   images: {
     remotePatterns: supabaseHost
       ? [{ protocol: "https", hostname: supabaseHost, pathname: "/storage/v1/object/public/**" }]

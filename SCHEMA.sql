@@ -17,8 +17,9 @@ create extension if not exists "pgcrypto";
 -- ------------------------------------------------------------
 create type tipo_perfil        as enum ('aluno', 'empresa');
 create type tipo_cliente       as enum ('escola', 'faculdade', 'empresa', 'outro');
-create type status_campanha    as enum ('rascunho', 'aberta', 'encerrada', 'concluida');
+create type status_campanha    as enum ('aberta', 'encerrada', 'concluida');
 create type tipo_produto       as enum ('simples', 'kit');
+create type situacao_produto   as enum ('a_venda', 'pausado', 'oculto');
 create type status_pedido      as enum ('ativo', 'cancelado');
 create type status_producao    as enum ('aguardando', 'liberado', 'em_producao', 'pronto', 'entregue');
 create type metodo_pagamento   as enum ('pix', 'cartao', 'dinheiro', 'transferencia', 'outro');
@@ -58,7 +59,7 @@ create table campanha (
   id            uuid primary key default gen_random_uuid(),
   cliente_id    uuid not null references cliente(id) on delete cascade,
   nome          text not null,                    -- "Formatura 2026"
-  status        status_campanha not null default 'rascunho',
+  status        status_campanha not null default 'aberta',
 
   -- label do agrupamento, para servir escola/faculdade/empresa sem mudar schema
   label_grupo         text not null default 'Turma',   -- "Turma" | "Sala" | "Setor"
@@ -98,7 +99,13 @@ alter table grupo add constraint grupo_codigo_formato
 -- Produto · pertence à campanha (preço/produto variam por campanha)
 --
 -- Preço NÃO varia por tamanho (decisão do usuário).
--- Personalização com nome é OBRIGATÓRIA.
+-- Nome bordado é POR PRODUTO: o moletom sai sem (exige_nome).
+--
+-- As colunas abaixo do bloco original chegaram em duas migrations:
+--   galeria_de_imagens_do_produto  →  imagens
+--   cadastro_de_produto            →  situacao, classe, exige_nome,
+--                                     max_parcelas, prazo_pedidos,
+--                                     prazo_alteracoes, e `ativo` virou gerada
 -- ------------------------------------------------------------
 create table produto (
   id            uuid primary key default gen_random_uuid(),
@@ -106,15 +113,36 @@ create table produto (
   nome          text not null,                 -- "Camiseta de formatura" | "Kit Formatura"
   descricao     text,
   tipo          tipo_produto not null default 'simples',
+  classe        text not null default 'outro'
+    check (classe in ('camisa', 'moletom', 'polo', 'outro')),
   preco_centavos integer not null check (preco_centavos >= 0),
 
   -- grade de tamanhos, na ordem de exibição. Só para tipo 'simples'.
   tamanhos      text[] not null default '{}',
 
+  -- galeria. imagens[1] é a capa: é ela que aparece na vitrine.
+  imagens       text[] not null default '{}',
+
   -- limite de caracteres do bordado
   max_caracteres_nome smallint not null default 20 check (max_caracteres_nome between 1 and 60),
 
-  ativo         boolean not null default true,
+  -- false = a peça sai sem bordado, e a tela de personalização some do fluxo
+  exige_nome    boolean not null default true,
+
+  -- teto de vezes que o aluno pode escolher. A 1ª parcela é sempre a entrada.
+  max_parcelas  smallint not null default 2 check (max_parcelas between 1 and 12),
+
+  -- prazos próprios. Nulos herdam os da campanha.
+  prazo_pedidos    date,
+  prazo_alteracoes date,
+
+  -- a_venda aparece e vende · pausado aparece sem botão · oculto some da loja
+  situacao      situacao_produto not null default 'a_venda',
+
+  -- derivada de `situacao`: uma fonte da verdade só, e todo código antigo que
+  -- pergunta por `ativo` continua valendo.
+  ativo         boolean generated always as (situacao = 'a_venda') stored,
+
   ordem         smallint not null default 0,
   criado_em     timestamptz not null default now(),
 
@@ -191,7 +219,11 @@ create table pedido_item (
 
   produto_nome_snapshot text not null,
   tamanho        text not null,
-  nome_estampa   text not null check (length(trim(nome_estampa)) > 0),
+  -- Vazio quando o produto não leva bordado (produto.exige_nome = false). O
+  -- check de tamanho mínimo caiu na migration cadastro_de_produto: nulo
+  -- obrigaria tratar a ausência em dez telas, e string vazia já cai bem em
+  -- todas, inclusive na coluna "Nome ou Apelido" da planilha, que sai em branco.
+  nome_estampa   text not null,
   quantidade     smallint not null default 1 check (quantidade > 0),
   observacoes    text,
 
@@ -269,7 +301,8 @@ select
   case
     when coalesce(sum(g.valor_centavos), 0) >= p.valor_centavos then 'pago'
     when coalesce(sum(g.valor_centavos), 0) > 0                 then 'parcial'
-    when p.vencimento is not null and p.vencimento < current_date then 'atrasado'
+    when p.vencimento is not null
+      and p.vencimento < (now() at time zone 'America/Sao_Paulo')::date then 'atrasado'
     else 'pendente'
   end as status
 from parcela p
@@ -296,10 +329,15 @@ select
   coalesce(sum(vp.pago_centavos), 0)::integer                    as pago_centavos,
   (ped.valor_centavos - coalesce(sum(vp.pago_centavos), 0))::integer as saldo_centavos,
 
+  -- "Em atraso" significa uma coisa só: pagou a entrada e deixou vencer o resto.
+  -- Quem nunca pagou nada cai em 'pendente', vencido ou não, porque a cobrança é
+  -- outra: um é lembrete de segunda parcela, o outro é pedido que nunca entrou na
+  -- produção. Por isso o teste de pagamento vem antes do teste de vencimento.
   case
     when coalesce(sum(vp.pago_centavos), 0) >= ped.valor_centavos then 'pago'
+    when coalesce(sum(vp.pago_centavos), 0) > 0
+     and bool_or(vp.status = 'atrasado')                          then 'atrasado'
     when coalesce(sum(vp.pago_centavos), 0) > 0                   then 'parcial'
-    when bool_or(vp.status = 'atrasado')                          then 'atrasado'
     else 'pendente'
   end as status_pagamento,
 

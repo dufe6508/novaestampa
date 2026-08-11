@@ -3,13 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db, mensagem } from "@/lib/supabase";
-import { concederAcesso } from "@/lib/empresa";
+import { concederAcesso, perfilEmpresa } from "@/lib/empresa";
 import { abrirSessao, sessao } from "@/lib/sessao";
 import { entrar as entrarComConta } from "@/lib/aluno";
 import { invalidarPainel } from "@/lib/painel";
 import {
   capitalizarFrase,
   capitalizarNome,
+  centavosDe,
   mascaraTelefone,
   nomeCompletoValido,
   telefoneValido,
@@ -47,6 +48,15 @@ import {
 async function semSessao() {
   const s = await sessao();
   return s?.id ? null : "Sessão expirada. Entre de novo para continuar.";
+}
+
+/**
+ * Escritas que alteram a estrutura comercial exigem perfil de empresa.
+ * A proteção do layout não basta porque Server Actions também são endpoints.
+ */
+async function semEmpresa() {
+  const perfil = await perfilEmpresa();
+  return perfil?.id ? null : "Você não tem permissão para alterar clientes e campanhas.";
 }
 
 /** Mesma regra do lado do aluno: só a mensagem que nós escrevemos aparece. */
@@ -287,43 +297,64 @@ export async function editarItem(_estado: string | null, dados: FormData) {
 const TIPOS_CLIENTE = ["escola", "faculdade", "empresa", "outro"] as const;
 
 /**
+ * Lê e valida o formulário do cliente. Criar e editar mandam os mesmos campos,
+ * então a validação mora num lugar só: acrescentar um campo depois é mexer aqui,
+ * e as duas telas ganham juntas.
+ *
+ * Devolve string quando algo está errado, no mesmo contrato das ações.
+ */
+function lerCliente(dados: FormData) {
+  const nome = capitalizarNome(String(dados.get("nome") ?? ""));
+  if (nome.length < 2) return "Escreva o nome do cliente.";
+
+  const telefone = String(dados.get("contato_telefone") ?? "").trim() || null;
+  if (telefone && !telefoneValido(telefone))
+    return "Digite o telefone com DDD, como em (31) 999848388.";
+
+  const tipoBruto = String(dados.get("tipo") ?? "escola");
+
+  const email = String(dados.get("contato_email") ?? "")
+    .trim()
+    .toLowerCase();
+  if (email && !email.includes("@")) return "Digite um e-mail válido, com @.";
+
+  return {
+    nome,
+    tipo: TIPOS_CLIENTE.includes(tipoBruto as (typeof TIPOS_CLIENTE)[number])
+      ? tipoBruto
+      : "escola",
+    cidade: capitalizarNome(String(dados.get("cidade") ?? "")) || null,
+    // Endereço não passa por `capitalizarNome`: "Rua Alagoas, 1270 - Savassi"
+    // tem número e sigla, e subir inicial de tudo estraga mais do que arruma.
+    endereco: String(dados.get("endereco") ?? "").trim() || null,
+    contato_nome: capitalizarNome(String(dados.get("contato_nome") ?? "")) || null,
+    contato_cargo: capitalizarNome(String(dados.get("contato_cargo") ?? "")) || null,
+    contato_telefone: telefone,
+    contato_email: email || null,
+    observacoes: capitalizarFrase(String(dados.get("observacoes") ?? "")) || null,
+  };
+}
+
+/**
  * Cadastra a escola, faculdade ou empresa.
  *
- * Só o nome é obrigatório. Cidade e contato ajudam a diferenciar duas escolas de
- * nome parecido (o banco tem duas "Cláudio Brandão"), mas exigir os dois na hora
- * de criar trava quem só quer começar a campanha e busca o telefone depois.
+ * Só o nome é obrigatório. O resto ajuda a diferenciar dois clientes de nome
+ * parecido (o banco tem duas "Cláudio Brandão"), mas exigir tudo na criação
+ * trava quem só quer começar a campanha e busca o telefone depois.
  *
  * Termina dentro do cliente recém-criado, e não de volta na lista: quem acabou
  * de cadastrar a escola vai criar a campanha dela em seguida.
  */
 export async function criarCliente(_estado: string | null, dados: FormData) {
-  const barrado = await semSessao();
+  const barrado = await semEmpresa();
   if (barrado) return barrado;
 
-  const nome = capitalizarNome(String(dados.get("nome") ?? ""));
-  if (nome.length < 2) return "Escreva o nome do cliente.";
-
-  const tipoBruto = String(dados.get("tipo") ?? "escola");
-  const tipo = TIPOS_CLIENTE.includes(tipoBruto as (typeof TIPOS_CLIENTE)[number])
-    ? tipoBruto
-    : "escola";
-
-  const cidade = capitalizarNome(String(dados.get("cidade") ?? "")) || null;
-  const contato = capitalizarNome(String(dados.get("contato_nome") ?? "")) || null;
-  const telefone = String(dados.get("contato_telefone") ?? "").trim() || null;
-
-  if (telefone && !telefoneValido(telefone))
-    return "Digite o telefone com DDD, como em (31) 999848388.";
+  const valores = lerCliente(dados);
+  if (typeof valores === "string") return valores;
 
   const { data, error } = await db()
     .from("cliente")
-    .insert({
-      nome,
-      tipo,
-      cidade,
-      contato_nome: contato,
-      contato_telefone: telefone,
-    })
+    .insert(valores)
     .select("id")
     .single<{ id: string }>();
 
@@ -331,6 +362,411 @@ export async function criarCliente(_estado: string | null, dados: FormData) {
 
   atualizar();
   redirect(`/painel/cliente/${data.id}`);
+}
+
+/**
+ * Edita o cadastro do cliente.
+ *
+ * Fica na lista depois de salvar, ao contrário do criar: quem edita veio
+ * corrigir uma coisa e quer ver a correção no lugar de onde saiu.
+ */
+export async function editarCliente(_estado: string | null, dados: FormData) {
+  const barrado = await semEmpresa();
+  if (barrado) return barrado;
+
+  const id = String(dados.get("cliente_id") ?? "");
+  if (!id) return "Cliente não informado.";
+
+  const valores = lerCliente(dados);
+  if (typeof valores === "string") return valores;
+
+  const { error } = await db().from("cliente").update(valores).eq("id", id);
+  if (error) return erro(error);
+
+  atualizar();
+  redirect(String(dados.get("voltar") || "/painel"));
+}
+
+/**
+ * Tira o cliente da lista sem apagar nada. É o caminho normal para quem
+ * terminou: a escola de 2025 não some do histórico, só para de aparecer.
+ *
+ * O mesmo botão desarquiva, porque a ação é uma só vista de dois lados.
+ */
+export async function arquivarCliente(_estado: string | null, dados: FormData) {
+  const barrado = await semEmpresa();
+  if (barrado) return barrado;
+
+  const id = String(dados.get("cliente_id") ?? "");
+  if (!id) return "Cliente não informado.";
+
+  const arquivar = dados.get("arquivar") === "1";
+
+  const { error } = await db()
+    .from("cliente")
+    .update({ arquivado_em: arquivar ? new Date().toISOString() : null })
+    .eq("id", id);
+
+  if (error) return erro(error);
+
+  atualizar();
+  redirect(String(dados.get("voltar") || "/painel"));
+}
+
+/**
+ * Apaga o cliente de verdade, com campanhas e turmas junto.
+ *
+ * O banco já é a trava real: `pedido.grupo_id` é `ON DELETE RESTRICT`, então
+ * cliente com um pedido sequer não sai de jeito nenhum, mesmo que este código
+ * tenha um furo. A contagem aqui existe só para a tela dizer o motivo em
+ * português, em vez de mostrar erro de chave estrangeira.
+ */
+export async function excluirCliente(_estado: string | null, dados: FormData) {
+  const barrado = await semEmpresa();
+  if (barrado) return barrado;
+
+  const id = String(dados.get("cliente_id") ?? "");
+  if (!id) return "Cliente não informado.";
+
+  const { data: resumo } = await db()
+    .from("vw_cliente_resumo")
+    .select("pedidos")
+    .eq("id", id)
+    .maybeSingle<{ pedidos: number }>();
+
+  if ((resumo?.pedidos ?? 0) > 0)
+    return "Este cliente já tem pedidos. Arquive em vez de excluir, para não apagar histórico de pagamento.";
+
+  const { error } = await db().from("cliente").delete().eq("id", id);
+  if (error) return erro(error);
+
+  atualizar();
+  redirect("/painel");
+}
+
+// ------------------------------------------------------------
+// Campanha
+// ------------------------------------------------------------
+
+const STATUS_CAMPANHA = ["aberta", "encerrada", "concluida"] as const;
+const PLURAIS_GRUPO: Record<string, string> = {
+  Turma: "Turmas",
+  Sala: "Salas",
+  Setor: "Setores",
+};
+
+/**
+ * Lê e valida o formulário da campanha.
+ *
+ * Duas regras que o banco não impõe e a tela precisa:
+ *
+ * · Alteração não pode fechar antes do pedido. A produção começa quando as
+ *   alterações fecham (§3.5), então a ordem invertida geraria peça sendo feita
+ *   enquanto o aluno ainda pode pedir.
+ * · Entrega não pode ser antes das alterações, pelo mesmo motivo.
+ */
+function lerCampanha(dados: FormData) {
+  const nome = capitalizarNome(String(dados.get("nome") ?? ""));
+  if (nome.length < 2) return "Escreva o nome da campanha.";
+
+  const label = capitalizarNome(String(dados.get("label_grupo") ?? "")) || "Turma";
+  const labelPlural =
+    capitalizarNome(String(dados.get("label_grupo_plural") ?? "")) ||
+    PLURAIS_GRUPO[label] ||
+    `${label}s`;
+
+  const prazoPedidos = String(dados.get("prazo_pedidos") ?? "") || null;
+  const prazoAlteracoes = String(dados.get("prazo_alteracoes") ?? "") || null;
+  const entrega = String(dados.get("entrega_prevista") ?? "") || null;
+
+  if (prazoPedidos && prazoAlteracoes && prazoAlteracoes < prazoPedidos)
+    return "O prazo de alterações não pode ser anterior ao de pedidos.";
+
+  if (prazoAlteracoes && entrega && entrega < prazoAlteracoes)
+    return "A entrega não pode ser antes do fim das alterações.";
+
+  if (prazoPedidos && entrega && entrega < prazoPedidos)
+    return "A entrega não pode ser antes do fim dos pedidos.";
+
+  const entrada = Number(dados.get("percentual_entrada") ?? 50);
+  if (!Number.isFinite(entrada) || entrada < 0 || entrada > 100)
+    return "A entrada precisa ser um percentual entre 0 e 100.";
+
+  const statusBruto = String(dados.get("status") ?? "aberta");
+
+  return {
+    nome,
+    label_grupo: label,
+    label_grupo_plural: labelPlural,
+    prazo_pedidos: prazoPedidos,
+    prazo_alteracoes: prazoAlteracoes,
+    entrega_prevista: entrega,
+    percentual_entrada: Math.round(entrada),
+    status: STATUS_CAMPANHA.includes(statusBruto as (typeof STATUS_CAMPANHA)[number])
+      ? statusBruto
+      : "aberta",
+  };
+}
+
+export async function criarCampanha(_estado: string | null, dados: FormData) {
+  const barrado = await semEmpresa();
+  if (barrado) return barrado;
+
+  const clienteId = String(dados.get("cliente_id") ?? "");
+  if (!clienteId) return "Cliente não informado.";
+
+  const valores = lerCampanha(dados);
+  if (typeof valores === "string") return valores;
+
+  const { data, error } = await db()
+    .from("campanha")
+    .insert({ ...valores, cliente_id: clienteId })
+    .select("id")
+    .single<{ id: string }>();
+
+  if (error) return erro(error);
+
+  atualizar();
+  redirect(`/painel/campanha/${data.id}`);
+}
+
+/**
+ * Edita a campanha.
+ *
+ * Mudar o percentual de entrada **não** recalcula parcela já gerada, e isso é
+ * proposital: pedido fechado é histórico financeiro. A tela avisa.
+ */
+export async function editarCampanha(_estado: string | null, dados: FormData) {
+  const barrado = await semEmpresa();
+  if (barrado) return barrado;
+
+  const id = String(dados.get("campanha_id") ?? "");
+  if (!id) return "Campanha não informada.";
+
+  const valores = lerCampanha(dados);
+  if (typeof valores === "string") return valores;
+
+  const { error } = await db().from("campanha").update(valores).eq("id", id);
+  if (error) return erro(error);
+
+  atualizar();
+  redirect(String(dados.get("voltar") || "/painel"));
+}
+
+/** Mesma trava do cliente: com pedido, o banco recusa e a tela explica antes. */
+export async function excluirCampanha(_estado: string | null, dados: FormData) {
+  const barrado = await semEmpresa();
+  if (barrado) return barrado;
+
+  const id = String(dados.get("campanha_id") ?? "");
+  if (!id) return "Campanha não informada.";
+
+  const { data: resumo } = await db()
+    .from("vw_campanha_resumo")
+    .select("pedidos")
+    .eq("id", id)
+    .maybeSingle<{ pedidos: number }>();
+
+  if ((resumo?.pedidos ?? 0) > 0)
+    return "Esta campanha já tem pedidos e não pode ser excluída. Encerre a campanha em vez disso.";
+
+  const { error } = await db().from("campanha").delete().eq("id", id);
+  if (error) return erro(error);
+
+  atualizar();
+  redirect(String(dados.get("voltar") || "/painel"));
+}
+
+// ------------------------------------------------------------
+// Produto · nasce dentro da campanha
+// ------------------------------------------------------------
+
+const CLASSES_PRODUTO = ["camisa", "moletom", "polo", "outro"] as const;
+const SITUACOES_PRODUTO = ["a_venda", "pausado", "oculto"] as const;
+
+/** "R$ 159,90" vira 15990. Lê só os dígitos, como a máscara do campo. */
+const centavos = centavosDe;
+
+function umDe<T extends readonly string[]>(lista: T, valor: unknown, padrao: T[number]) {
+  return lista.includes(valor as T[number]) ? (valor as T[number]) : padrao;
+}
+
+/**
+ * Lê e valida o formulário do produto, para criar e editar.
+ *
+ * Duas regras que o banco não impõe:
+ *
+ * · Produto simples precisa de pelo menos um tamanho. Sem grade não há o que
+ *   escolher, e o pedido morreria na validação do banco depois do aluno já ter
+ *   preenchido tudo.
+ * · Alteração não pode fechar antes do pedido, pela mesma razão da campanha: a
+ *   produção começa quando as alterações fecham.
+ */
+function lerProduto(dados: FormData) {
+  const nome = capitalizarNome(String(dados.get("nome") ?? ""));
+  if (nome.length < 2) return "Escreva o nome do produto.";
+
+  const preco = centavos(String(dados.get("preco") ?? ""));
+  if (!Number.isFinite(preco) || preco <= 0) return "Digite o preço do produto.";
+
+  const tamanhos = dados
+    .getAll("tamanhos")
+    .map((t) => String(t).trim())
+    .filter(Boolean);
+  if (tamanhos.length === 0) return "Escolha pelo menos um tamanho da grade.";
+
+  const parcelas = Number(dados.get("max_parcelas") ?? 2);
+  if (!Number.isFinite(parcelas) || parcelas < 1 || parcelas > 12)
+    return "O parcelamento precisa ser entre 1 e 12 vezes.";
+
+  const prazoPedidos = String(dados.get("prazo_pedidos") ?? "") || null;
+  const prazoAlteracoes = String(dados.get("prazo_alteracoes") ?? "") || null;
+  if (prazoPedidos && prazoAlteracoes && prazoAlteracoes < prazoPedidos)
+    return "O prazo de alterações não pode ser anterior ao de pedidos.";
+
+  let imagens: string[] = [];
+  try {
+    const bruto = JSON.parse(String(dados.get("imagens") ?? "[]"));
+    if (Array.isArray(bruto)) imagens = bruto.map(String).filter(Boolean);
+  } catch {
+    return "Não consegui ler as fotos. Recarregue a página e tente de novo.";
+  }
+  // Caminho vem do navegador, então nunca é confiável: só passa o que está
+  // dentro da pasta de campanha do bucket.
+  if (imagens.some((c) => !/^campanha\/[0-9a-f-]{36}\/[\w.-]+$/i.test(c)))
+    return "Uma das fotos veio com caminho inválido. Suba de novo.";
+
+  return {
+    nome,
+    descricao: capitalizarFrase(String(dados.get("descricao") ?? "")) || null,
+    classe: umDe(CLASSES_PRODUTO, dados.get("classe"), "outro"),
+    situacao: umDe(SITUACOES_PRODUTO, dados.get("situacao"), "a_venda"),
+    preco_centavos: preco,
+    tamanhos,
+    imagens,
+    exige_nome: dados.get("exige_nome") !== "0",
+    max_parcelas: Math.round(parcelas),
+    prazo_pedidos: prazoPedidos,
+    prazo_alteracoes: prazoAlteracoes,
+  };
+}
+
+/** Apaga do bucket as fotos que saíram do produto. Sem isso, o Storage vira depósito. */
+async function apagarFotos(caminhos: string[]) {
+  if (caminhos.length === 0) return;
+  await db().storage.from("produtos").remove(caminhos);
+}
+
+export async function criarProduto(_estado: string | null, dados: FormData) {
+  const barrado = await semEmpresa();
+  if (barrado) return barrado;
+
+  const campanhaId = String(dados.get("campanha_id") ?? "");
+  if (!campanhaId) return "Campanha não informada.";
+
+  const valores = lerProduto(dados);
+  if (typeof valores === "string") return valores;
+
+  const { error } = await db().from("produto").insert({
+    ...valores,
+    campanha_id: campanhaId,
+    // O limite de caracteres do bordado está suspenso até a produção informar o
+    // máximo real (CLAUDE.md §3.5). 60 é o teto do schema, e o preview comprime
+    // o traço para o nome caber.
+    max_caracteres_nome: 60,
+  });
+
+  if (error) return erro(error);
+
+  atualizar();
+  redirect(String(dados.get("voltar") || `/painel/campanha/${campanhaId}`));
+}
+
+export async function editarProduto(_estado: string | null, dados: FormData) {
+  const barrado = await semEmpresa();
+  if (barrado) return barrado;
+
+  const id = String(dados.get("produto_id") ?? "");
+  if (!id) return "Produto não informado.";
+
+  const valores = lerProduto(dados);
+  if (typeof valores === "string") return valores;
+
+  const { data: antes } = await db()
+    .from("produto")
+    .select("imagens")
+    .eq("id", id)
+    .maybeSingle<{ imagens: string[] }>();
+
+  const { error } = await db().from("produto").update(valores).eq("id", id);
+  if (error) return erro(error);
+
+  await apagarFotos((antes?.imagens ?? []).filter((c) => !valores.imagens.includes(c)));
+
+  atualizar();
+  redirect(String(dados.get("voltar") || "/painel"));
+}
+
+/**
+ * Pausar, ocultar e voltar a vender, do menu de três pontos.
+ *
+ * São os três estados de uma coisa só, então é uma ação só: pausado continua na
+ * vitrine sem botão de pedir, oculto some dela. Nenhum dos dois mexe em pedido
+ * já feito, e é isso que os separa de excluir.
+ */
+export async function situacaoProduto(_estado: string | null, dados: FormData) {
+  const barrado = await semEmpresa();
+  if (barrado) return barrado;
+
+  const id = String(dados.get("produto_id") ?? "");
+  if (!id) return "Produto não informado.";
+
+  const { error } = await db()
+    .from("produto")
+    .update({ situacao: umDe(SITUACOES_PRODUTO, dados.get("situacao"), "a_venda") })
+    .eq("id", id);
+
+  if (error) return erro(error);
+
+  atualizar();
+  redirect(String(dados.get("voltar") || "/painel"));
+}
+
+/**
+ * Apaga o produto e as fotos dele.
+ *
+ * `pedido.produto_id` é `ON DELETE RESTRICT`, então o banco já é a trava real.
+ * A contagem aqui existe para a tela dizer o motivo em português e oferecer
+ * ocultar, que é o que a pessoa queria de verdade.
+ */
+export async function excluirProduto(_estado: string | null, dados: FormData) {
+  const barrado = await semEmpresa();
+  if (barrado) return barrado;
+
+  const id = String(dados.get("produto_id") ?? "");
+  if (!id) return "Produto não informado.";
+
+  const { count } = await db()
+    .from("pedido")
+    .select("id", { count: "exact", head: true })
+    .eq("produto_id", id);
+
+  if ((count ?? 0) > 0)
+    return "Este produto já tem pedidos. Oculte em vez de excluir, para não apagar histórico.";
+
+  const { data: antes } = await db()
+    .from("produto")
+    .select("imagens")
+    .eq("id", id)
+    .maybeSingle<{ imagens: string[] }>();
+
+  const { error } = await db().from("produto").delete().eq("id", id);
+  if (error) return erro(error);
+
+  await apagarFotos(antes?.imagens ?? []);
+
+  atualizar();
+  redirect(String(dados.get("voltar") || "/painel"));
 }
 
 /**

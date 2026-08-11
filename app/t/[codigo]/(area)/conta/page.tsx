@@ -26,8 +26,7 @@ export default async function Conta({ params }: { params: Promise<{ codigo: stri
   const perfil = await buscarPerfil(aluno.id);
   if (!perfil) {
     // Perfil sumiu do banco com o cookie ainda de pé. Limpa e recomeça.
-    await fecharSessao();
-    redirect(`/t/${turma.codigo}/entrar`);
+    redirect(`/t/${turma.codigo}/reiniciar-sessao`);
   }
 
   const pedidos = await meusPedidos(aluno.id, turma.codigo);
@@ -86,7 +85,6 @@ export default async function Conta({ params }: { params: Promise<{ codigo: stri
               name="telefone"
               etiqueta="Telefone"
               defaultValue={perfil.telefone ?? ""}
-              ajuda="Serve para falarem com você sobre a entrega. Pedidos já feitos guardam o telefone que estava lá na hora, e continuam como estão."
             />
           </FormAcao>
         </div>

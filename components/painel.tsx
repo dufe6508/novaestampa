@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { reais } from "@/lib/formato";
-import { pct } from "@/lib/painel";
-import { Seta } from "./icones";
+import { capitalizarNome, reais } from "@/lib/formato";
+import { pct, type ResumoProduto } from "@/lib/painel";
+import { Seta, Voltar as SetaVoltar } from "./icones";
 
 /**
  * Peças da área de gestão.
@@ -157,46 +157,11 @@ export function Migalha({
 }
 
 /**
- * Busca. Formulário GET puro, sem estado e sem JS.
- *
- * Custa uma tecla a mais (Enter) e ganha: funciona com o navegador desligado,
- * o resultado é uma URL que dá para mandar no WhatsApp, e o botão voltar
- * desfaz a busca. Busca ao vivo só compensaria se a lista fosse grande, e a
- * maior aqui tem algumas dezenas de linhas.
+ * A busca é o único pedaço do painel que precisa de estado no navegador, então
+ * mora sozinha em `busca.tsx`, atrás de `"use client"`. Reexportada aqui para
+ * as telas continuarem importando tudo do mesmo lugar.
  */
-export function Busca({
-  nome = "q",
-  valor,
-  placeholder,
-  escondidos,
-}: {
-  nome?: string;
-  valor?: string;
-  placeholder: string;
-  escondidos?: Record<string, string | undefined>;
-}) {
-  return (
-    <form className="flex min-w-0 flex-1 items-center gap-2 sm:max-w-xs">
-      {Object.entries(escondidos ?? {}).map(([k, v]) =>
-        v ? <input key={k} type="hidden" name={k} value={v} /> : null,
-      )}
-      <label htmlFor={`busca-${nome}`} className="sr-only">
-        {placeholder}
-      </label>
-      <input
-        id={`busca-${nome}`}
-        type="search"
-        name={nome}
-        defaultValue={valor ?? ""}
-        placeholder={placeholder}
-        className="h-10 w-full rounded-lg border border-line bg-surface px-3 text-body-sm
-          text-ink outline-none transition-[border-color,box-shadow] duration-base ease-soft
-          placeholder:text-faint focus:border-brand-deep
-          focus:shadow-[0_0_0_3px_rgb(15_168_188_/_0.16)]"
-      />
-    </form>
-  );
-}
+export { Busca } from "./busca";
 
 /**
  * Filtros como link, não como botão de estado.
@@ -244,6 +209,65 @@ export function Chips({
 }
 
 /**
+ * Abas de tela. O nível de cima da navegação dentro de uma página.
+ *
+ * Sublinhado, e não segmento em caixa cinza: esse desenho fica para as sub-abas
+ * (`SubAbas`), um nível abaixo. Se os dois fossem iguais, a tela teria duas
+ * fileiras de links parecidos e ninguém saberia qual manda em qual.
+ *
+ * Cada aba é uma URL, como todo filtro do painel: dá para mandar "olha as turmas
+ * da Formatura 2026" e a pessoa cai exatamente ali, e o voltar do navegador
+ * desfaz a troca.
+ */
+export function Abas({
+  opcoes,
+  acao,
+  atraso,
+}: {
+  opcoes: { texto: string; href: string; ativo: boolean; contagem?: number }[];
+  /** O que fica na ponta direita da faixa, normalmente uma busca. */
+  acao?: React.ReactNode;
+  atraso?: number;
+}) {
+  return (
+    <div
+      className="entra flex flex-wrap items-end justify-between gap-x-4 gap-y-2
+        border-b border-line"
+      style={atraso ? ({ "--atraso": `${atraso}ms` } as React.CSSProperties) : undefined}
+    >
+      <div className="sem-barra -mb-px flex w-full min-w-0 max-w-full items-center gap-1
+        overflow-x-auto sm:w-auto">
+        {opcoes.map((o) => (
+          <Link
+            key={o.href}
+            href={o.href}
+            scroll={false}
+            aria-current={o.ativo ? "page" : undefined}
+            className={`shrink-0 whitespace-nowrap border-b-2 px-3 py-2.5 text-body-sm
+              transition-colors duration-fast ease-soft
+              ${
+                o.ativo
+                  ? "border-ink font-semibold text-ink"
+                  : "border-transparent font-medium text-muted hover:text-ink"
+              }`}
+          >
+            {o.texto}
+            {o.contagem !== undefined && (
+              <span data-nums className="ml-2 text-caption text-faint">
+                {o.contagem}
+              </span>
+            )}
+          </Link>
+        ))}
+      </div>
+      {acao && (
+        <div className="mb-1.5 flex min-w-0 flex-1 items-center justify-end gap-2">{acao}</div>
+      )}
+    </div>
+  );
+}
+
+/**
  * Sub-abas. Um nível abaixo das abas principais, e com desenho diferente.
  *
  * Aba principal é sublinhado; sub-aba é segmento dentro de uma caixa cinza.
@@ -283,29 +307,183 @@ export function SubAbas({
   );
 }
 
-/** Cabeçalho de tela. Título, trilha e ações na mesma linha no desktop. */
+/**
+ * Cabeçalho de tela. Título, trilha e ações na mesma linha no desktop.
+ *
+ * A seta de voltar é redundante com a trilha no desktop e não é no celular: lá
+ * a trilha quebra em duas linhas de texto miúdo e ninguém acerta o alvo com o
+ * dedo. A seta é um alvo de 40px, sempre no mesmo canto, e leva um nível acima.
+ */
 export function Topo({
   migalha,
   titulo,
   subtitulo,
   acoes,
+  voltar,
 }: {
   migalha?: { texto: string; href?: string }[];
   titulo: string;
   subtitulo?: React.ReactNode;
   acoes?: React.ReactNode;
+  /** Um nível acima. Sem isto a seta não aparece. */
+  voltar?: string;
 }) {
   return (
-    <header className="entra flex flex-col gap-3">
+    <header className="entra relative z-30 flex flex-col gap-3">
       {migalha && <Migalha itens={migalha} />}
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-1">
-          <h1>{titulo}</h1>
-          {subtitulo && <div className="text-body-sm text-muted">{subtitulo}</div>}
+        <div className="flex min-w-0 items-start gap-2">
+          {voltar && (
+            <Link
+              href={voltar}
+              aria-label="Voltar"
+              className="-ml-2 mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-md
+                text-muted transition-colors duration-fast ease-soft hover:bg-surface-2
+                hover:text-ink"
+            >
+              <SetaVoltar className="h-[18px] w-[18px]" />
+            </Link>
+          )}
+          <div className="flex min-w-0 flex-col gap-1">
+            <h1>{titulo}</h1>
+            {subtitulo && <div className="text-body-sm text-muted">{subtitulo}</div>}
+          </div>
         </div>
-        {acoes && <div className="flex flex-wrap items-center gap-2">{acoes}</div>}
+        {acoes && <div className="ml-auto flex flex-wrap items-center gap-2">{acoes}</div>}
       </div>
     </header>
+  );
+}
+
+/**
+ * Contagem com o percentual entre parênteses.
+ *
+ * "218 61%" grudados eram dois números do mesmo tamanho disputando quem é o
+ * dado. O parêntese resolve na leitura: o que conta é a contagem, o percentual
+ * é a qualificação dela, e vai menor e em `muted`.
+ */
+export function Quitados({ pagos, total }: { pagos: number; total: number }) {
+  return (
+    <span data-nums className="whitespace-nowrap">
+      <span className="font-semibold text-ink">{pagos}</span>
+      {total > 0 && (
+        <span className="text-caption text-muted"> ({pct(pagos, total)}%)</span>
+      )}
+    </span>
+  );
+}
+
+/**
+ * Bloco que abre e fecha, com a mesma casca do `Bloco`.
+ *
+ * Serve para o que é consulta, não acompanhamento: o resumo de corte interessa
+ * no dia do corte e atrapalha nos outros trinta. Fechado ele ocupa uma linha e
+ * já entrega o número que responde de longe ("214 peças"); aberto entrega a
+ * tabela inteira.
+ *
+ * `details` nativo: abre sem JavaScript, o navegador cuida do teclado, e o
+ * triângulo padrão sai porque ele é a única coisa da tela que não obedece ao
+ * design do resto.
+ */
+export function Retratil({
+  titulo,
+  resumo,
+  aberto,
+  children,
+  atraso,
+}: {
+  titulo: string;
+  /** O que se lê com o bloco fechado. */
+  resumo?: React.ReactNode;
+  aberto?: boolean;
+  children: React.ReactNode;
+  atraso?: number;
+}) {
+  return (
+    <details
+      open={aberto}
+      className="entra group overflow-hidden rounded-lg border border-line bg-surface shadow-card"
+      style={atraso ? ({ "--atraso": `${atraso}ms` } as React.CSSProperties) : undefined}
+    >
+      <summary
+        className="flex cursor-pointer list-none items-center gap-2 px-4 py-2.5
+          transition-colors duration-fast ease-soft hover:bg-surface-2
+          group-open:border-b group-open:border-line [&::-webkit-details-marker]:hidden"
+      >
+        <Seta
+          className="h-3.5 w-3.5 shrink-0 text-muted transition-transform duration-base
+            ease-soft group-open:rotate-90"
+        />
+        <h2 className="text-h3">{titulo}</h2>
+        {resumo && (
+          <span className="ml-auto truncate text-caption text-muted">{resumo}</span>
+        )}
+      </summary>
+      {children}
+    </details>
+  );
+}
+
+/**
+ * Quanto de cada produto foi pedido, e quanto disso está pago.
+ *
+ * É a pergunta que ninguém conseguia responder sem abrir turma por turma:
+ * quantas camisas e quantos moletons a campanha vendeu. Peça e pedido são
+ * contagens diferentes de propósito, kit e quantidade maior que um fazem os
+ * dois números se descolarem, e quem vai comprar tecido precisa do de peças.
+ */
+export function ResumoProdutos({ linhas }: { linhas: ResumoProduto[] }) {
+  return (
+    <div>
+      <div className="label hidden grid-cols-[minmax(0,1.5fr)_0.7fr_0.9fr_1fr] gap-5 border-b
+        border-line bg-surface-2 px-4 py-2 text-center font-semibold text-muted md:grid">
+        <span className="text-left">Produto</span>
+        <span>Peças</span>
+        <span>Quitados</span>
+        <span>Em Aberto</span>
+      </div>
+      <ul className="divide-y divide-line">
+        {linhas.map((l) => (
+          <li
+            key={l.produto}
+            className="grid grid-cols-2 gap-x-4 gap-y-2 px-4 py-3 md:grid-cols-[minmax(0,1.5fr)_0.7fr_0.9fr_1fr]
+              md:items-center md:gap-5"
+          >
+            <h3 className="col-span-2 min-w-0 truncate text-body-sm font-semibold md:col-span-1">
+              {capitalizarNome(l.produto)}
+            </h3>
+            <div className="text-left md:text-center">
+              <span className="label block text-muted md:hidden">Peças</span>
+              <span data-nums className="text-body-sm font-semibold text-ink">{l.pecas}</span>
+            </div>
+            <div className="text-right md:text-center">
+              <span className="label block text-muted md:hidden">Quitados</span>
+              <span data-nums className="text-body-sm font-semibold text-ink">
+                {l.pagos} De {l.pedidos}
+              </span>
+              {" "}
+              <span data-nums className="text-caption text-muted">
+                ({pct(l.pagos, l.pedidos)}%)
+              </span>
+            </div>
+            <div className="col-span-2 flex items-baseline justify-between border-t border-line pt-2
+              md:col-span-1 md:flex-col md:items-center md:border-0 md:pt-0">
+              <span className="label text-muted md:hidden">Em aberto</span>
+              <span data-nums className="text-body-sm">
+                <span className="font-semibold text-ink">{l.faltando}</span>
+                <span className="text-muted"> · </span>
+                <Valor centavos={l.a_receber_centavos} tom="forte" />
+              </span>
+              {l.atrasados > 0 && (
+                <span data-nums className="text-caption text-danger">
+                  {l.atrasados} {l.atrasados === 1 ? "pedido vencido" : "pedidos vencidos"}
+                </span>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

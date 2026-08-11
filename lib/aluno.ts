@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { mensagem, publico } from "./supabase";
 import { emCache, invalidarPainel } from "./painel";
+import { diasAteNoFuso } from "./data";
 
 export { reais, tamanhoLegivel } from "./formato";
 
@@ -38,6 +39,16 @@ export type Produto = {
   max_caracteres_nome: number;
   imagens: string[];
   ordem: number;
+  classe: "camisa" | "moletom" | "polo" | "outro";
+  /** Falso é o moletom: sai sem bordado, e a tela de nome some do fluxo. */
+  exige_nome: boolean;
+  /** Teto de vezes que o aluno pode escolher no fechamento. */
+  max_parcelas: number;
+  /** `pausado` continua na vitrine, sem botão. `oculto` nem chega aqui. */
+  situacao: "a_venda" | "pausado";
+  /** Quando existem, mandam mais que os prazos da campanha. */
+  prazo_pedidos: string | null;
+  prazo_alteracoes: string | null;
 };
 
 export type Peca = {
@@ -55,6 +66,7 @@ export type Item = {
   nome_estampa: string;
   tamanhos: string[];
   max_caracteres: number;
+  exige_nome: boolean;
 };
 
 export type Parcela = {
@@ -78,6 +90,8 @@ export type Pedido = {
   status_pagamento: "pago" | "parcial" | "atrasado" | "pendente";
   status_producao: "aguardando" | "liberado" | "em_producao" | "pronto" | "entregue";
   criado_em: string;
+  /** Já resolvido entre produto e campanha: o produto manda quando tem data. */
+  prazo_alteracoes: string | null;
   itens: Item[];
   parcelas: Parcela[];
 };
@@ -185,12 +199,14 @@ export async function criarPedido(
   codigo: string,
   produtoId: string,
   itens: { produto_id: string; tamanho: string; nome_estampa: string }[],
+  parcelas?: number,
 ) {
   const { data, error } = await publico().rpc("aluno_criar_pedido", {
     p_perfil_id: perfilId,
     p_codigo: codigo,
     p_produto_id: produtoId,
     p_itens: itens,
+    p_parcelas: parcelas ?? null,
   });
   if (error) return { erro: mensagem(error) };
   invalidarPainel();
@@ -256,10 +272,7 @@ export function diaCurto(d: string | null | undefined) {
 
 /** Dias que faltam para uma data. Negativo já passou. */
 export function diasAte(d: string | null | undefined) {
-  if (!d) return null;
-  const alvo = new Date(`${d}T12:00:00`).getTime();
-  const hoje = new Date().setHours(12, 0, 0, 0);
-  return Math.round((alvo - hoje) / 86400000);
+  return diasAteNoFuso(d);
 }
 
 /**
@@ -276,7 +289,7 @@ const EM_FILA = ["aguardando", "liberado"];
 
 export function podeEditar(pedido: Pedido, turma: Turma) {
   if (!EM_FILA.includes(pedido.status_producao)) return false;
-  const restam = diasAte(turma.prazo_alteracoes);
+  const restam = diasAte(pedido.prazo_alteracoes ?? turma.prazo_alteracoes);
   return restam === null || restam >= 0;
 }
 
@@ -284,6 +297,32 @@ export function podeEditar(pedido: Pedido, turma: Turma) {
  * Quando a oficina começa. Não existe campo próprio: a produção começa quando
  * as alterações fecham, senão produziria peça que ainda pode mudar.
  */
-export function inicioProducao(turma: Turma) {
-  return turma.prazo_alteracoes;
+export function inicioProducao(turma: Turma, pedido?: Pedido) {
+  return pedido?.prazo_alteracoes ?? turma.prazo_alteracoes;
+}
+
+/**
+ * Prazo que vale para um produto. O da campanha é o padrão; o do produto
+ * sobrescreve, e é o que permite fechar a camisa antes do moletom sem
+ * encerrar a campanha inteira.
+ */
+export function prazoDoProduto(
+  turma: Turma,
+  produto: Pick<Produto, "prazo_pedidos" | "prazo_alteracoes">,
+) {
+  return {
+    pedidos: produto.prazo_pedidos ?? turma.prazo_pedidos,
+    alteracoes: produto.prazo_alteracoes ?? turma.prazo_alteracoes,
+  };
+}
+
+/**
+ * Dá para comprar agora? Junta as três travas que fecham a porta: a campanha,
+ * a situação do produto e o prazo que vale para ele.
+ */
+export function podeComprar(turma: Turma, produto: Produto) {
+  if (turma.campanha_status !== "aberta") return false;
+  if (produto.situacao !== "a_venda") return false;
+  const restam = diasAte(prazoDoProduto(turma, produto).pedidos);
+  return restam === null || restam >= 0;
 }

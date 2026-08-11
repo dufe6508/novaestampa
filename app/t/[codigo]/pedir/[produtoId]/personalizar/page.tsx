@@ -15,8 +15,9 @@ import { FormPersonalizar } from "./form-personalizar";
  * de revisão funcionar sem o aluno redigitar tudo.
  */
 
+/** String vazia é valor válido: é o nome de uma peça que sai sem bordado. */
 function lista(v: string | string[] | undefined): string[] {
-  if (!v) return [];
+  if (v === undefined) return [];
   return Array.isArray(v) ? v : [v];
 }
 
@@ -72,10 +73,11 @@ export default async function Personalizar({
       </Link>
 
       <header className="entra flex flex-col gap-1.5">
-        <h1>Tamanho e nome</h1>
+        <h1>{produto.exige_nome ? "Tamanho e nome" : "Tamanho"}</h1>
         <p className="text-body-sm leading-relaxed text-muted">
-          O nome vai bordado na peça. Confira letra por letra, esta parte não tem conserto
-          depois que a peça é produzida.
+          {produto.exige_nome
+            ? "O nome vai bordado na peça. Confira letra por letra, esta parte não tem conserto depois que a peça é produzida."
+            : "Esta peça sai sem nome bordado. Confira o tamanho, é o que não tem conserto depois de produzida."}
         </p>
       </header>
 
@@ -83,6 +85,7 @@ export default async function Personalizar({
         codigo={turma.codigo}
         produtoId={produto.id}
         maxCaracteres={produto.max_caracteres_nome}
+        exigeNome={produto.exige_nome}
         pecas={modelo}
         prefill={prefill}
         foco={foco === "nome" ? "nome" : foco === "tamanho" ? "tamanho" : undefined}

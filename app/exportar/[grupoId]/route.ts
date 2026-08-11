@@ -2,6 +2,7 @@ import {
   buscarTurmaPainel,
   listarPedidosDaTurma,
   pecasParaProduzir,
+  posicaoDoTamanho,
   PREFIXO_BABY_LOOK,
 } from "@/lib/painel";
 import { planilha, type Aba, type Linha } from "@/lib/planilha/xlsx";
@@ -22,17 +23,6 @@ import { sessao } from "@/lib/sessao";
  * escrevia à mão. A da direita é o apelido, o que vai bordado. Quem entrega
  * confere um contra o outro sem precisar perguntar de quem é a peça.
  */
-
-/** Ordem da grade. Tamanho fora dela vai para o fim, na ordem alfabética. */
-const ORDEM = ["PP", "P", "M", "G", "GG", "XG", "XGG", "EG"];
-
-function posicao(tamanho: string) {
-  const babyLook = tamanho.startsWith(PREFIXO_BABY_LOOK);
-  const base = babyLook ? tamanho.slice(PREFIXO_BABY_LOOK.length) : tamanho;
-  const i = ORDEM.indexOf(base.toUpperCase());
-  // Baby look depois da grade tradicional inteira, na mesma ordem interna.
-  return (babyLook ? 100 : 0) + (i === -1 ? 50 : i);
-}
 
 /** "BL M" vira "M Baby Look", que é como o modelo original nomeia a aba. */
 function nomeDoTamanho(tamanho: string) {
@@ -57,11 +47,15 @@ export async function GET(
   // Um arquivo por produto. Camiseta e moletom são cortados em momentos
   // diferentes, então misturar os dois num papel só é pedir erro na mesa.
   const produto = filtros.get("produto")?.trim();
+  // Tamanhos escolhidos na gaveta de exportação. Vazio quer dizer a grade
+  // inteira, que é o caso mais comum e continua sendo o padrão.
+  const tamanhos = new Set(filtros.getAll("tamanho").filter(Boolean));
 
   const pedidos = await listarPedidosDaTurma(grupoId);
   const pecas = pecasParaProduzir(pedidos)
     .filter((p) => !busca || p.aluno_nome.toLowerCase().includes(busca))
-    .filter((p) => !produto || p.produto === produto);
+    .filter((p) => !produto || p.produto === produto)
+    .filter((p) => tamanhos.size === 0 || tamanhos.has(p.tamanho));
 
   // Uma aba por tamanho que alguém pediu, na ordem da grade.
   const porTamanho = new Map<string, Linha[]>();
@@ -76,7 +70,7 @@ export async function GET(
   }
 
   const abas: Aba[] = [...porTamanho.entries()]
-    .sort((a, b) => posicao(a[0]) - posicao(b[0]))
+    .sort((a, b) => posicaoDoTamanho(a[0]) - posicaoDoTamanho(b[0]))
     .map(([tamanho, linhas]) => ({
       nome: nomeDoTamanho(tamanho),
       linhas: linhas.sort((a, b) => a.assinatura.localeCompare(b.assinatura, "pt-BR")),
@@ -87,7 +81,13 @@ export async function GET(
   }
 
   const etiqueta = produto ? produto.split(/[\s·,(]+/)[0].toLowerCase() : "producao";
-  const arquivo = `${etiqueta}-${turma.grupo.nome}.xlsx`.replace(/[^a-zA-Z0-9.-]/g, "-");
+  // O tamanho entra no nome do arquivo quando foi escolhido: quem baixa três
+  // folhas seguidas precisa saber qual é qual na pasta de downloads.
+  const marca = tamanhos.size > 0 ? `-${abas.map((a) => a.nome).join("-")}` : "";
+  const arquivo = `${etiqueta}${marca}-${turma.grupo.nome}.xlsx`.replace(
+    /[^a-zA-Z0-9.-]/g,
+    "-",
+  );
 
   const bytes = planilha(abas);
 

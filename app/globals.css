@@ -49,8 +49,12 @@
   --color-success-soft: #e7f4ee;
   --color-warning: #8a5a00;
   --color-warning-soft: #fff4e2;
-  --color-danger: #b13326;
-  --color-danger-soft: #fcebe9;
+  /* O vermelho anterior (#b13326) tinha verde demais para o azul que sobrava, e
+     puxava para tijolo: em bloco (barra, chip) lia sujo ao lado do ciano da
+     marca. Este é mais frio, na direção do bordô da peça, e mantém 5.4:1 no
+     branco, acima do AA de texto normal. */
+  --color-danger: #c62f36;
+  --color-danger-soft: #fdeaec;
 
   /* bordô da peça, só dentro do preview da estampa */
   --color-bordo: #7b2233;
@@ -105,6 +109,21 @@
     -webkit-text-size-adjust: 100%;
     /* Âncora não teleporta. A regra de reduced-motion lá embaixo desliga isto. */
     scroll-behavior: smooth;
+  }
+
+  /* O calendário do `input type="date"`, a caixa de seleção e o rádio são
+     desenhados pelo navegador, e nenhum CSS alcança o interior deles. O que
+     alcança é `accent-color`: é ele que pinta o dia selecionado, o "hoje" e o
+     preenchimento da caixa marcada. Sem isto o painel inteiro é ciano e preto
+     até a pessoa abrir uma data, e aí aparece o azul do Chrome, que não é cor
+     nenhuma deste projeto.
+
+     `color-scheme: light` trava o calendário no claro: sem a declaração, quem
+     usa o sistema no escuro recebe um calendário preto dentro de uma tela
+     branca (CLAUDE.md §5, tema claro nos dois lados, sem dark theme). */
+  :root {
+    accent-color: var(--color-brand);
+    color-scheme: light;
   }
 
   body {

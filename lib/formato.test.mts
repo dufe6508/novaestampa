@@ -18,8 +18,11 @@ execFileSync(
 const {
   PADRAO_NOME_COMPLETO,
   PADRAO_TELEFONE,
+  capitalizarDigitando,
   capitalizarFrase,
   capitalizarNome,
+  centavosDe,
+  mascaraDinheiro,
   mascaraTelefone,
   nomeCompletoValido,
   telefoneValido,
@@ -75,12 +78,14 @@ for (const nome of ["Maria", "Maria F", "M"]) {
 
 // Inicial maiúscula, sem estragar o resto do que a pessoa escreveu.
 assert.equal(capitalizarNome("joão fernandes"), "João Fernandes");
-assert.equal(capitalizarNome("  maria   das  dores "), "Maria das Dores");
-assert.equal(capitalizarNome("ana de sá"), "Ana de Sá");
+assert.equal(capitalizarNome("  maria   das  dores "), "Maria Das Dores");
+assert.equal(capitalizarNome("ana de sá"), "Ana De Sá");
+assert.equal(capitalizarNome("3a série"), "3A Série");
 assert.equal(capitalizarNome("MacHado"), "MacHado");
 assert.equal(capitalizarNome("FERNANDES"), "FERNANDES");
 assert.equal(capitalizarNome("de souza"), "De Souza");
 assert.equal(capitalizarNome(""), "");
+assert.equal(capitalizarDigitando("3a série"), "3A Série");
 
 assert.equal(
   capitalizarFrase("  acordo com   a comissão "),
@@ -91,6 +96,26 @@ assert.equal(capitalizarFrase(""), "");
 // Capitalizar não pode transformar nome válido em inválido, nem o contrário.
 for (const nome of ["joão fernandes", "ana de sá", "maria"]) {
   assert.equal(nomeCompletoValido(capitalizarNome(nome)), nomeCompletoValido(nome), nome);
+}
+
+/**
+ * Dinheiro. A máscara e o leitor precisam ser um o inverso do outro: o campo
+ * mostra o que a máscara produz, e o servidor grava o que o leitor entende. Se
+ * discordarem, o produto entra no banco por dez vezes o preço.
+ */
+assert.equal(mascaraDinheiro("15990"), "R$ 159,90");
+assert.equal(mascaraDinheiro("6"), "R$ 0,06");
+assert.equal(mascaraDinheiro("R$ 159,90"), "R$ 159,90");
+assert.equal(mascaraDinheiro(""), "");
+assert.equal(mascaraDinheiro("abc"), "");
+
+assert.equal(centavosDe("R$ 159,90"), 15990);
+assert.equal(centavosDe("159,90"), 15990);
+assert.equal(centavosDe("15990"), 15990);
+assert.ok(Number.isNaN(centavosDe("")));
+
+for (const centavos of [1, 600, 15990, 2199000]) {
+  assert.equal(centavosDe(mascaraDinheiro(String(centavos))), centavos, String(centavos));
 }
 
 console.log("formato: ok");

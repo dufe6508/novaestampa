@@ -43,6 +43,8 @@ export default async function Editar({
   if (!item) notFound();
 
   const editavel = podeEditar(pedido, turma);
+  // O prazo do produto manda quando existe, e é ele que a tela precisa dizer.
+  const prazo = pedido.prazo_alteracoes ?? turma.prazo_alteracoes;
 
   async function acao(_estado: string | null, dados: FormData) {
     "use server";
@@ -70,7 +72,7 @@ export default async function Editar({
       </Link>
 
       <header className="flex flex-col gap-1.5">
-        <h1>Alterar peça</h1>
+        <h1>{item.exige_nome ? "Alterar peça" : "Alterar tamanho"}</h1>
         <p className="text-body-sm text-muted">
           {item.produto} · pedido de{" "}
           {new Date(pedido.criado_em).toLocaleDateString("pt-BR", {
@@ -82,10 +84,10 @@ export default async function Editar({
 
       {editavel ? (
         <>
-          {turma.prazo_alteracoes && (
+          {prazo && (
             <Alerta>
-              Alterações abertas até {dia(turma.prazo_alteracoes)}. A produção inicia após essa
-              data, e tamanho e nome ficam travados.
+              Alterações abertas até {dia(prazo)}. A produção inicia após essa data, e{" "}
+              {item.exige_nome ? "tamanho e nome ficam travados" : "o tamanho fica travado"}.
             </Alerta>
           )}
 
@@ -95,6 +97,7 @@ export default async function Editar({
             tamanhoAtual={item.tamanho}
             nomeAtual={item.nome_estampa}
             maxCaracteres={item.max_caracteres}
+            exigeNome={item.exige_nome}
           />
         </>
       ) : (
@@ -104,17 +107,23 @@ export default async function Editar({
           <Alerta>
             {["aguardando", "liberado"].includes(pedido.status_producao)
               ? `O prazo de alterações terminou${
-                  turma.prazo_alteracoes ? ` em ${dia(turma.prazo_alteracoes)}` : ""
+                  prazo ? ` em ${dia(prazo)}` : ""
                 }. Fale com seu representante.`
               : "Esta peça já está sendo produzida, então tamanho e nome não podem mais mudar."}
           </Alerta>
 
           <dl className="flex flex-col gap-3 rounded-xl border border-line bg-surface p-5">
-            <div className="flex flex-col gap-0.5">
-              <dt className="label text-muted">Nome bordado</dt>
-              <dd className="break-words text-body font-semibold">{item.nome_estampa}</dd>
-            </div>
-            <div className="flex flex-col gap-0.5 border-t border-line pt-3">
+            {item.exige_nome && (
+              <div className="flex flex-col gap-0.5">
+                <dt className="label text-muted">Nome bordado</dt>
+                <dd className="break-words text-body font-semibold">{item.nome_estampa}</dd>
+              </div>
+            )}
+            <div
+              className={`flex flex-col gap-0.5 ${
+                item.exige_nome ? "border-t border-line pt-3" : ""
+              }`}
+            >
               <dt className="label text-muted">Tamanho</dt>
               <dd className="text-body font-semibold">{tamanhoLegivel(item.tamanho)}</dd>
             </div>

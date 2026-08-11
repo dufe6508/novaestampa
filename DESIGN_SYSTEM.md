@@ -294,7 +294,7 @@ e a peça virou trabalho, o evento mais importante do produto.
 
 ### Campanha
 
-Rascunho `muted` · Aberta `success` · Encerrada `ink-2` · Concluída `muted`
+Aberta `success` · Encerrada `ink-2` · Concluída `muted`
 
 ---
 

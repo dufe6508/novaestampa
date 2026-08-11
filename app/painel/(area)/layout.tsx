@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Logo } from "@/components/logo";
-import { Empresa, Sair } from "@/components/icones";
+import { Sair } from "@/components/icones";
+import { NavPainel } from "@/components/nav-painel";
 import { exigirEmpresa } from "@/lib/empresa";
 
 /**
@@ -20,34 +21,9 @@ import { exigirEmpresa } from "@/lib/empresa";
  * JavaScript. O layout inteiro continua sendo componente de servidor, e o que
  * chega ao navegador é a planilha, não a navegação.
  *
- * A navegação tem um item só hoje, e isso é de propósito: Produtos vive dentro
- * da campanha (é lá que ele existe, CLAUDE.md §3.2.1) e Configurações saiu do
- * escopo por decisão do usuário. Relatórios entram aqui quando existirem.
+ * A lista de destinos vive em `components/nav-painel.tsx`, que é a única ilha
+ * de cliente daqui: ela precisa saber a rota atual para acender o item aberto.
  */
-
-const ITENS = [{ href: "/painel", texto: "Clientes", Icone: Empresa }];
-
-function Navegacao() {
-  return (
-    <nav aria-label="Navegação da gestão">
-      <ul className="flex flex-col gap-0.5">
-        {ITENS.map(({ href, texto, Icone }) => (
-          <li key={href}>
-            <Link
-              href={href}
-              className="group flex items-center gap-3 rounded-md px-3 py-2 text-body-sm
-                font-medium text-ink-2 transition-colors duration-fast ease-soft
-                hover:bg-surface-2 hover:text-ink"
-            >
-              <Icone className="h-[18px] w-[18px] text-muted group-hover:text-ink-2" />
-              {texto}
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </nav>
-  );
-}
 
 function Rodape() {
   return (
@@ -88,7 +64,7 @@ export default async function LayoutPainel({ children }: { children: React.React
           </span>
         </summary>
         <div className="flex flex-col gap-1 border-t border-line px-2 py-2">
-          <Navegacao />
+          <NavPainel />
           <div className="border-t border-line pt-1">
             <Rodape />
           </div>
@@ -103,7 +79,7 @@ export default async function LayoutPainel({ children }: { children: React.React
           <div className="px-3">
             <Logo />
           </div>
-          <Navegacao />
+          <NavPainel />
         </div>
         <Rodape />
       </aside>

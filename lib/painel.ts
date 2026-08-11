@@ -2,7 +2,10 @@ import { cache } from "react";
 import { revalidateTag, unstable_cache } from "next/cache";
 import { db } from "./supabase";
 
-export { PREFIXO_BABY_LOOK, reais, tamanhoLegivel } from "./formato";
+import { PREFIXO_BABY_LOOK } from "./formato";
+
+export { PREFIXO_BABY_LOOK };
+export { reais, tamanhoLegivel } from "./formato";
 
 /**
  * Leitura da área de gestão.
@@ -78,7 +81,7 @@ export type CampanhaResumo = {
   cliente_id: string;
   cliente_nome: string;
   nome: string;
-  status: "rascunho" | "aberta" | "encerrada" | "concluida";
+  status: "aberta" | "encerrada" | "concluida";
   label_grupo: string;
   label_grupo_plural: string;
   prazo_pedidos: string | null;
@@ -190,12 +193,22 @@ export type TurmaPainel = {
 // Clientes · home do painel
 // ------------------------------------------------------------
 
-export const listarClientes = emCache("clientes", async (busca?: string): Promise<ClienteResumo[]> => {
-  let q = db().from("vw_cliente_resumo").select("*").order("nome");
-  if (busca?.trim()) q = q.ilike("nome", `%${busca.trim()}%`);
-  const { data } = await q.returns<ClienteResumo[]>();
-  return data ?? [];
-});
+/**
+ * A lista da home. Mostra só os ativos, e os arquivados quando pedido.
+ *
+ * Sem esse filtro, arquivar não faria nada visível, que é a única coisa que
+ * arquivar promete.
+ */
+export const listarClientes = emCache(
+  "clientes",
+  async (busca?: string, arquivados?: string): Promise<ClienteResumo[]> => {
+    let q = db().from("vw_cliente_resumo").select("*").order("nome");
+    q = arquivados === "1" ? q.not("arquivado_em", "is", null) : q.is("arquivado_em", null);
+    if (busca?.trim()) q = q.ilike("nome", `%${busca.trim()}%`);
+    const { data } = await q.returns<ClienteResumo[]>();
+    return data ?? [];
+  },
+);
 
 export const buscarCliente = emCache("cliente", async (id: string): Promise<ClienteResumo | null> => {
   const { data } = await db()
@@ -205,6 +218,41 @@ export const buscarCliente = emCache("cliente", async (id: string): Promise<Clie
     .maybeSingle<ClienteResumo>();
   return data ?? null;
 });
+
+export type ClienteCadastro = {
+  id: string;
+  nome: string;
+  tipo: ClienteResumo["tipo"];
+  cidade: string | null;
+  endereco: string | null;
+  contato_nome: string | null;
+  contato_cargo: string | null;
+  contato_telefone: string | null;
+  contato_email: string | null;
+  observacoes: string | null;
+};
+
+/**
+ * A linha crua do cliente, para o formulário de edição.
+ *
+ * `vw_cliente_resumo` não serve aqui: ela existe para a lista e não carrega
+ * endereço nem observações. Em vez de inchar a view com coluna que a lista não
+ * mostra, o formulário lê a tabela.
+ */
+export const buscarClienteCadastro = emCache(
+  "cliente-cadastro",
+  async (id: string): Promise<ClienteCadastro | null> => {
+    const { data } = await db()
+      .from("cliente")
+      .select(
+        "id,nome,tipo,cidade,endereco,contato_nome,contato_cargo," +
+          "contato_telefone,contato_email,observacoes",
+      )
+      .eq("id", id)
+      .maybeSingle<ClienteCadastro>();
+    return data ?? null;
+  },
+);
 
 // ------------------------------------------------------------
 // Campanhas
@@ -250,9 +298,8 @@ export const listarTodasCampanhas = emCache(
 /** Ordem de interesse. Aberta na frente; concluída é a que ninguém procura. */
 const PESO_STATUS: Record<CampanhaResumo["status"], number> = {
   aberta: 0,
-  rascunho: 1,
-  encerrada: 2,
-  concluida: 3,
+  encerrada: 1,
+  concluida: 2,
 };
 
 /**
@@ -512,6 +559,135 @@ export const FILTROS = {
 
 export type Filtro = keyof typeof FILTROS;
 
+/**
+ * As três filas de cobrança da campanha.
+ *
+ * São exclusivas entre si de propósito: a mesma pessoa aparecendo em duas listas
+ * faria a soma das listas mentir. Cada uma é uma tela própria em
+ * `/painel/campanha/[id]/cobranca?s=`, com filtro por turma.
+ *
+ * Os títulos descrevem a pessoa, não a régua. "Falta a segunda parcela" obrigava
+ * quem lê a converter aquilo em "então essa pagou a entrada"; "Pagou só a
+ * entrada" já entrega o estado, e é assim que a cobrança é falada no telefone.
+ */
+export const SITUACOES = {
+  atrasado: {
+    titulo: "Em atraso",
+    explica: "Pagaram a entrada e deixaram vencer o restante.",
+    vale: (p: PedidoPainel) => p.status_pagamento === "atrasado",
+  },
+  parcial: {
+    titulo: "Entrada recebida",
+    explica: "Pedidos com entrada confirmada e saldo previsto para a entrega.",
+    vale: (p: PedidoPainel) => p.status_pagamento === "parcial",
+  },
+  pendente: {
+    titulo: "Não pagaram nada",
+    explica: "Fizeram o pedido e não pagaram nenhuma parcela, vencida ou não.",
+    vale: (p: PedidoPainel) => p.status_pagamento === "pendente",
+  },
+} as const;
+
+export type Situacao = keyof typeof SITUACOES;
+
+export function ehSituacao(v: string | undefined): v is Situacao {
+  return !!v && v in SITUACOES;
+}
+
+export type ResumoProduto = {
+  produto: string;
+  pedidos: number;
+  pecas: number;
+  pagos: number;
+  faltando: number;
+  atrasados: number;
+  vendido_centavos: number;
+  recebido_centavos: number;
+  a_receber_centavos: number;
+};
+
+/**
+ * Quanto de cada produto foi pedido e quanto disso está pago.
+ *
+ * `pedidos` e `pecas` são contagens diferentes e as duas importam: kit e
+ * quantidade maior que um descolam as duas, o dinheiro se conta por pedido e o
+ * tecido se compra por peça.
+ */
+export function resumoPorProduto(pedidos: PedidoPainel[]): ResumoProduto[] {
+  const mapa = new Map<string, ResumoProduto>();
+
+  for (const p of pedidos) {
+    const chave = p.produto_nome_snapshot;
+    const linha =
+      mapa.get(chave) ??
+      {
+        produto: chave,
+        pedidos: 0,
+        pecas: 0,
+        pagos: 0,
+        faltando: 0,
+        atrasados: 0,
+        vendido_centavos: 0,
+        recebido_centavos: 0,
+        a_receber_centavos: 0,
+      };
+
+    linha.pedidos += 1;
+    linha.pecas += p.itens.reduce((n, i) => n + i.quantidade, 0);
+    if (p.status_pagamento === "pago") linha.pagos += 1;
+    else linha.faltando += 1;
+    if (p.status_pagamento === "atrasado") linha.atrasados += 1;
+    linha.vendido_centavos += p.valor_centavos;
+    linha.recebido_centavos += p.pago_centavos;
+    linha.a_receber_centavos += p.saldo_centavos;
+
+    mapa.set(chave, linha);
+  }
+
+  return [...mapa.values()].sort((a, b) => b.pedidos - a.pedidos);
+}
+
+/**
+ * O corte agrupado por produto, com os tamanhos na ordem da grade.
+ *
+ * A view devolve uma linha por (grupo, produto, tamanho), e é a tela que precisa
+ * somar os grupos: a oficina corta a campanha inteira de uma vez, não turma por
+ * turma. Ordem alfabética de tamanho colocaria G antes de M, que não é ordem
+ * nenhuma para quem separa tecido.
+ */
+const ORDEM_TAMANHO = ["PP", "P", "M", "G", "GG", "XG", "XGG", "EG"];
+
+export function posicaoDoTamanho(tamanho: string) {
+  const bl = tamanho.startsWith(PREFIXO_BABY_LOOK);
+  const base = bl ? tamanho.slice(PREFIXO_BABY_LOOK.length) : tamanho;
+  const i = ORDEM_TAMANHO.indexOf(base.toUpperCase());
+  // Baby look depois da grade tradicional inteira, na mesma ordem interna.
+  return (bl ? 100 : 0) + (i === -1 ? 50 : i);
+}
+
+export function agruparCorte(linhas: LinhaCorte[]) {
+  const mapa = new Map<string, Map<string, number>>();
+
+  for (const l of linhas) {
+    const porTamanho = mapa.get(l.produto) ?? new Map<string, number>();
+    porTamanho.set(l.tamanho, (porTamanho.get(l.tamanho) ?? 0) + l.total);
+    mapa.set(l.produto, porTamanho);
+  }
+
+  return [...mapa.entries()]
+    .map(([produto, porTamanho]) => {
+      const tamanhos = [...porTamanho.entries()]
+        .map(([tamanho, total]) => ({ tamanho, total }))
+        .sort((a, b) => posicaoDoTamanho(a.tamanho) - posicaoDoTamanho(b.tamanho));
+      return {
+        produto,
+        tamanhos,
+        total: tamanhos.reduce((n, t) => n + t.total, 0),
+      };
+    })
+    .sort((a, b) => b.total - a.total);
+}
+
 export function ehFiltro(v: string | undefined): v is Filtro {
   return !!v && v in FILTROS;
 }
@@ -607,3 +783,210 @@ export function pct(parte: number, total: number) {
   if (!total) return 0;
   return Math.round((parte / total) * 100);
 }
+
+// ------------------------------------------------------------
+// Produtos · leitura entre campanhas
+// ------------------------------------------------------------
+
+/** Situação comercial do produto. `ativo` no banco é derivado de `a_venda`. */
+export type SituacaoProduto = "a_venda" | "pausado" | "oculto";
+export type ClasseProduto = "camisa" | "moletom" | "polo" | "outro";
+
+export const CLASSES: { valor: ClasseProduto; texto: string }[] = [
+  { valor: "camisa", texto: "Camisa" },
+  { valor: "moletom", texto: "Moletom" },
+  { valor: "polo", texto: "Polo" },
+  { valor: "outro", texto: "Outro" },
+];
+
+export const SITUACOES_PRODUTO: Record<
+  SituacaoProduto,
+  { titulo: string; explicacao: string }
+> = {
+  a_venda: { titulo: "À venda", explicacao: "Aparece na loja e aceita pedidos." },
+  pausado: {
+    titulo: "Venda pausada",
+    explicacao: "Continua na loja, sem botão de pedir.",
+  },
+  oculto: { titulo: "Oculto", explicacao: "Some da loja. Os pedidos feitos continuam." },
+};
+
+/**
+ * Produto como o cadastro o conhece. É o que a gaveta preenche e o que a aba
+ * de produtos da campanha lista, então tem tudo, inclusive o que só o admin vê.
+ */
+export type ProdutoCadastro = {
+  id: string;
+  campanha_id: string;
+  nome: string;
+  descricao: string | null;
+  tipo: "simples" | "kit";
+  classe: ClasseProduto;
+  preco_centavos: number;
+  tamanhos: string[];
+  imagens: string[];
+  situacao: SituacaoProduto;
+  exige_nome: boolean;
+  max_parcelas: number;
+  max_caracteres_nome: number;
+  prazo_pedidos: string | null;
+  prazo_alteracoes: string | null;
+  ordem: number;
+  /** Pedidos ativos feitos neste produto. Zero é o que permite excluir. */
+  pedidos: number;
+};
+
+const COLUNAS_PRODUTO =
+  "id,campanha_id,nome,descricao,tipo,classe,preco_centavos,tamanhos,imagens," +
+  "situacao,exige_nome,max_parcelas,max_caracteres_nome,prazo_pedidos,prazo_alteracoes,ordem";
+
+/**
+ * Produtos da campanha, com a contagem de pedidos de cada um.
+ *
+ * A contagem é uma segunda viagem ao banco e vale a pena: é ela que decide se
+ * o menu oferece excluir ou manda ocultar, e descobrir isso pelo erro de chave
+ * estrangeira depois do clique seria pior.
+ */
+export const listarProdutosDaCampanha = emCache(
+  "produtos-da-campanha",
+  async (campanhaId: string): Promise<ProdutoCadastro[]> => {
+    const { data } = await db()
+      .from("produto")
+      .select(COLUNAS_PRODUTO)
+      .eq("campanha_id", campanhaId)
+      .order("ordem")
+      .order("nome")
+      .returns<Omit<ProdutoCadastro, "pedidos">[]>();
+
+    const produtos = data ?? [];
+    if (produtos.length === 0) return [];
+
+    const { data: pedidos } = await db()
+      .from("pedido")
+      .select("produto_id")
+      .eq("status", "ativo")
+      .in("produto_id", produtos.map((p) => p.id))
+      .returns<{ produto_id: string }[]>();
+
+    const contagem: Record<string, number> = {};
+    for (const p of pedidos ?? []) contagem[p.produto_id] = (contagem[p.produto_id] ?? 0) + 1;
+
+    return produtos.map((p) => ({
+      ...p,
+      tamanhos: p.tamanhos ?? [],
+      imagens: p.imagens ?? [],
+      pedidos: contagem[p.id] ?? 0,
+    }));
+  },
+);
+
+export type ProdutoPainel = {
+  id: string;
+  nome: string;
+  tipo: "simples" | "kit";
+  preco_centavos: number;
+  tamanhos: string[];
+  ativo: boolean;
+  situacao: SituacaoProduto;
+  classe: ClasseProduto;
+  campanha_id: string;
+  campanha_nome: string;
+  campanha_status: CampanhaResumo["status"];
+  cliente_id: string;
+  cliente_nome: string;
+};
+
+type LinhaProduto = Omit<
+  ProdutoPainel,
+  "campanha_id" | "campanha_nome" | "campanha_status" | "cliente_id" | "cliente_nome"
+> & {
+  campanha: {
+    id: string;
+    nome: string;
+    status: CampanhaResumo["status"];
+    cliente: { id: string; nome: string } | null;
+  } | null;
+};
+
+/**
+ * Todos os produtos de todas as campanhas.
+ *
+ * Não é catálogo: produto continua pertencendo à campanha (§3.2.1) e o cadastro
+ * continua lá. Isto aqui responde a pergunta que hoje obriga abrir campanha por
+ * campanha, "o que a gente já vendeu, e por quanto".
+ *
+ * ponytail: traz tudo e agrupa em memória. São dezenas de linhas por campanha.
+ */
+export const listarTodosProdutos = emCache(
+  "produtos-todos",
+  async (busca?: string): Promise<ProdutoPainel[]> => {
+    let q = db()
+      .from("produto")
+      .select(
+        "id,nome,tipo,preco_centavos,tamanhos,ativo,situacao,classe," +
+          "campanha:campanha_id(id,nome,status,cliente:cliente_id(id,nome))",
+      )
+      .order("nome");
+    if (busca?.trim()) q = q.ilike("nome", `%${busca.trim()}%`);
+
+    const { data } = await q.returns<LinhaProduto[]>();
+
+    return (data ?? [])
+      .filter((p) => p.campanha?.cliente)
+      .map((p) => ({
+        id: p.id,
+        nome: p.nome,
+        tipo: p.tipo,
+        preco_centavos: p.preco_centavos,
+        tamanhos: p.tamanhos ?? [],
+        ativo: p.ativo,
+        situacao: p.situacao,
+        classe: p.classe,
+        campanha_id: p.campanha!.id,
+        campanha_nome: p.campanha!.nome,
+        campanha_status: p.campanha!.status,
+        cliente_id: p.campanha!.cliente!.id,
+        cliente_nome: p.campanha!.cliente!.nome,
+      }));
+  },
+);
+
+// ------------------------------------------------------------
+// Configurações · quem tem acesso à área da empresa
+// ------------------------------------------------------------
+
+export type AcessoEmpresa = {
+  perfil_id: string;
+  nome: string;
+  email: string | null;
+  concedido_em: string;
+};
+
+type LinhaAcesso = {
+  perfil_id: string;
+  concedido_em: string;
+  perfil: { nome: string; email: string | null } | null;
+};
+
+/**
+ * Quem entrou com o código da empresa, e quando.
+ *
+ * É o que dá sentido a trocar o código (§3.3): a dona vê sete contas, reconhece
+ * cinco, e as outras duas são o motivo da troca. Sem esta lista, rotacionar é um
+ * ato às cegas e ninguém faz.
+ */
+export const listarAcessos = emCache("acessos", async (): Promise<AcessoEmpresa[]> => {
+  const { data } = await db()
+    .from("acesso_empresa")
+    .select("perfil_id,concedido_em,perfil:perfil_id(nome,email)")
+    .is("revogado_em", null)
+    .order("concedido_em", { ascending: false })
+    .returns<LinhaAcesso[]>();
+
+  return (data ?? []).map((a) => ({
+    perfil_id: a.perfil_id,
+    nome: a.perfil?.nome ?? "Conta sem nome",
+    email: a.perfil?.email ?? null,
+    concedido_em: a.concedido_em,
+  }));
+});

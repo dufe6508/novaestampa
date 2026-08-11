@@ -227,13 +227,32 @@ export async function DetalhePedido({
               </span>
             </p>
 
-            <ul className="flex flex-col divide-y divide-line rounded-lg border border-line">
+            {/*
+              Uma parcela por cartão, com três degraus na leitura: a linha do
+              título diz de que parcela se trata e como ela está, o que já foi
+              pago vem em seguida como histórico, e a baixa fica isolada numa
+              caixa própria no rodapé.
+
+              A versão anterior misturava os três na mesma pilha e a baixa lia
+              como uma frase quebrada, "Baixar [campo] recebido em [Pix]
+              [Dinheiro]", que precisava de um parágrafo embaixo explicando o que
+              a tela devia dizer sozinha. Os campos agora se nomeiam: "Valor
+              recebido" tem o saldo inteiro como sugestão, e os botões vêm sob o
+              rótulo "Forma de pagamento".
+            */}
+            <ul className="flex flex-col gap-2">
               {parcelas.map((parcela) => (
-                <li key={parcela.id} className="flex flex-col gap-2.5 px-3.5 py-3">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="flex items-baseline gap-2 text-body-sm">
-                      <span className="font-semibold">{ordinal(parcela.numero)}</span>
-                      <span data-nums className="text-ink-2">
+                <li
+                  key={parcela.id}
+                  className="overflow-hidden rounded-lg border border-line"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1
+                    px-3.5 py-2.5">
+                    <span className="flex items-baseline gap-2">
+                      <span className="text-body-sm font-semibold">
+                        {ordinal(parcela.numero)}
+                      </span>
+                      <span data-nums className="text-body-sm font-semibold text-ink">
                         {reais(parcela.valor_centavos)}
                       </span>
                       {parcela.vencimento && (
@@ -245,60 +264,69 @@ export async function DetalhePedido({
                     <SeloPagamento status={parcela.status} />
                   </div>
 
-                  {parcela.pagamentos.map((g) => (
-                    <div
-                      key={g.id}
-                      className="flex items-center justify-between gap-2 rounded-md bg-surface-2
-                        px-2.5 py-1 text-caption text-ink-2"
-                    >
-                      <span data-nums>
-                        {reais(g.valor_centavos)} · {g.metodo} · {data(g.pago_em)}
-                      </span>
-                      <FormAcao
-                        acao={estornarPagamento}
-                        texto="Estornar"
-                        pendenteTexto="…"
-                        tom="fantasma"
-                        className={BOTAO_MIUDO}
-                      >
-                        <input type="hidden" name="pagamento_id" value={g.id} />
-                      </FormAcao>
-                    </div>
-                  ))}
+                  {parcela.pagamentos.length > 0 && (
+                    <ul className="divide-y divide-line border-t border-line">
+                      {parcela.pagamentos.map((g) => (
+                        <li
+                          key={g.id}
+                          className="flex items-center justify-between gap-2 px-3.5 py-1.5
+                            text-caption text-ink-2"
+                        >
+                          <span data-nums>
+                            <span className="font-semibold text-ink">
+                              {reais(g.valor_centavos)}
+                            </span>{" "}
+                            <span className="text-muted">
+                              {g.metodo} · {data(g.pago_em)}
+                            </span>
+                          </span>
+                          <FormAcao
+                            acao={estornarPagamento}
+                            texto="Estornar"
+                            pendenteTexto="…"
+                            tom="fantasma"
+                            className={BOTAO_MIUDO}
+                          >
+                            <input type="hidden" name="pagamento_id" value={g.id} />
+                          </FormAcao>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
 
                   {parcela.saldo_centavos > 0 && (
-                    <Escolha
-                      acao={registrarPagamento}
-                      campo="metodo"
-                      atual=""
-                      opcoes={METODOS}
-                      ocultos={{ parcela_id: parcela.id }}
-                    >
-                      <div className="flex items-center gap-2">
-                        <label
-                          htmlFor={`valor-${parcela.id}`}
-                          className="shrink-0 text-caption text-muted"
-                        >
-                          Baixar
-                        </label>
-                        <input
-                          id={`valor-${parcela.id}`}
-                          name="valor"
-                          inputMode="decimal"
-                          placeholder={reais(parcela.saldo_centavos)}
-                          className={`${CAMPO} w-28`}
-                        />
-                        <span className="shrink-0 text-caption text-muted">recebido em</span>
-                      </div>
-                    </Escolha>
+                    <div className="border-t border-line bg-surface-2/50 px-3.5 py-3">
+                      <Escolha
+                        acao={registrarPagamento}
+                        campo="metodo"
+                        atual=""
+                        opcoes={METODOS}
+                        ocultos={{ parcela_id: parcela.id }}
+                      >
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <label
+                              htmlFor={`valor-${parcela.id}`}
+                              className="label shrink-0 text-muted"
+                            >
+                              Valor recebido
+                            </label>
+                            <input
+                              id={`valor-${parcela.id}`}
+                              name="valor"
+                              inputMode="decimal"
+                              placeholder={reais(parcela.saldo_centavos)}
+                              className={`${CAMPO} w-32 text-right`}
+                            />
+                          </div>
+                          <p className="label text-muted">Forma de pagamento</p>
+                        </div>
+                      </Escolha>
+                    </div>
                   )}
                 </li>
               ))}
             </ul>
-            <p className="text-caption leading-snug text-muted">
-              Sem valor, a baixa quita a parcela inteira. O botão escolhido é a forma de
-              pagamento.
-            </p>
           </Secao>
 
           <Secao
@@ -337,7 +365,7 @@ export async function DetalhePedido({
                     name="motivo"
                     required
                     aviso="Escreva o motivo da liberação."
-                    placeholder="Motivo, ex. acordo com a comissão"
+                    placeholder="Motivo"
                     className={`${CAMPO} w-full`}
                   />
                 </FormAcao>

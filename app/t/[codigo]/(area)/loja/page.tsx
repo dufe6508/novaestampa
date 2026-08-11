@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { buscarTurma, dia, diasAte, listarProdutos } from "@/lib/aluno";
+import { buscarTurma, dia, diasAte, listarProdutos, podeComprar } from "@/lib/aluno";
 import { imagemUrl, reais } from "@/lib/supabase";
 import { Alerta, Vazio } from "@/components/campos";
 import { Estampa } from "@/components/estampa";
@@ -32,9 +32,7 @@ export default async function Loja({ params }: { params: Promise<{ codigo: strin
         <p className="text-body-sm text-muted">
           {produtos.length === 0
             ? "Catálogo ainda não publicado."
-            : produtos.length === 1
-              ? "1 produto disponível, com nome bordado."
-              : `${produtos.length} produtos disponíveis, todos com nome bordado.`}
+            : `${produtos.length} ${produtos.length === 1 ? "produto" : "produtos"} nesta campanha.`}
         </p>
       </header>
 
@@ -64,7 +62,14 @@ export default async function Loja({ params }: { params: Promise<{ codigo: strin
       ) : (
         // Duas colunas já no celular. Card de largura inteira com foto 4:5 vira
         // meia tela por produto, e ver a segunda opção exige rolar.
-        <ul className="grid grid-cols-2 gap-3 sm:gap-5">
+        //
+        // E mais colunas conforme a tela cresce, senão o oposto acontece: duas
+        // colunas num monitor dão um card de 450px, e a camiseta de 60 reais
+        // aparece do tamanho de um pôster. Foto grande é para vender no celular,
+        // que é onde a decisão acontece; no desktop o que vende é ver a campanha
+        // inteira de uma vez. A grade fica com largura máxima pela mesma razão:
+        // sem ela, telas muito largas voltam a inflar o card.
+        <ul className="grid max-w-5xl grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
           {produtos.map((p, i) => (
             <li key={p.id} className="entra" style={{ "--atraso": `${i * 60}ms` } as React.CSSProperties}>
               <Link
@@ -102,15 +107,24 @@ export default async function Loja({ params }: { params: Promise<{ codigo: strin
                       {p.nome}
                     </h2>
                     <p className="text-caption text-muted">
-                      {p.tipo === "kit" ? "Kit, mais de uma peça" : "Com nome bordado"}
+                      {!podeComprar(turma, p)
+                        ? "Fora de venda no momento"
+                        : p.tipo === "kit"
+                          ? "Kit, mais de uma peça"
+                          : p.exige_nome
+                            ? "Com nome bordado"
+                            : "Sem nome bordado"}
                     </p>
                   </div>
 
                   <div className="mt-auto flex items-end justify-between gap-2">
                     <div className="flex min-w-0 flex-col">
+                      {/* Um tamanho só. O `sm:text-num` existia porque o card
+                          crescia no desktop e o preço ficava perdido dentro
+                          dele; agora o card não cresce mais. */}
                       <span
                         data-nums
-                        className="text-h3 font-semibold leading-none tracking-tight sm:text-num"
+                        className="text-h3 font-semibold leading-none tracking-tight"
                       >
                         {reais(p.preco_centavos)}
                       </span>

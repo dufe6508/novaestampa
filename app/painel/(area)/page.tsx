@@ -1,5 +1,6 @@
 import Link from "next/link";
 import {
+  buscarClienteCadastro,
   campanhaEmDestaque,
   data,
   listarTodasCampanhas,
@@ -11,9 +12,12 @@ import {
 } from "@/lib/painel";
 import { Barra, Busca, Topo, Valor } from "@/components/painel";
 import { SeloCampanha } from "@/components/selo";
-import { Empresa, Mais } from "@/components/icones";
+import { Arquivar, Empresa, Lapis, Lixeira, Mais } from "@/components/icones";
 import { Vazio } from "@/components/campos";
-import { NovoCliente } from "@/components/novo-cliente";
+import { ClienteGaveta } from "@/components/cliente-gaveta";
+import { Confirmar } from "@/components/confirmar";
+import { ItemMenu, MenuAcoes } from "@/components/menu-acoes";
+import { arquivarCliente, excluirCliente } from "@/app/painel/acoes";
 
 /**
  * E1 · Clientes. Home da gestão.
@@ -93,7 +97,7 @@ function Contexto({
  *   barra, todos do mesmo tamanho, e nenhum ganhava.
  *
  * · **Selo só na exceção.** Campanha aberta é o normal e não precisa de aviso;
- *   quem precisa aparecer é rascunho, que não recebe pedido, e encerrada. Assim
+ *   quem precisa aparecer é encerrada ou concluída. Assim
  *   some o ponto colorido de quatro em quatro cards e sobra atenção para o que
  *   é fora do padrão.
  *
@@ -108,61 +112,112 @@ function CartaoCliente({
   cliente,
   campanha,
   atraso,
+  editar,
+  arquivar,
+  excluir,
 }: {
   cliente: ClienteResumo;
   campanha: CampanhaResumo | null;
   atraso: number;
+  /** Destinos já com a busca preservada. */
+  editar: string;
+  arquivar: string;
+  excluir: string;
 }) {
   const prazo = campanha?.status === "aberta" ? data(campanha.prazo_pedidos) : null;
   const vencido = cliente.atrasado_centavos > 0;
 
   return (
-    <li className="entra" style={{ "--atraso": `${atraso}ms` } as React.CSSProperties}>
-      <Link
-        href={`/painel/cliente/${cliente.id}`}
-        className="flex h-full flex-col gap-5 rounded-lg border border-line bg-surface p-5
-          transition-colors duration-base ease-soft hover:border-ink-2
-          focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2
-          focus-visible:outline-brand-deep"
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex min-w-0 flex-col gap-1">
-            <h2 className="text-h3 leading-snug">{cliente.nome}</h2>
-            <Contexto cliente={cliente} campanha={campanha} />
-          </div>
-          {/* Aberta é o esperado, então não vira selo. Ver o comentário acima. */}
-          {campanha && campanha.status !== "aberta" && (
-            <SeloCampanha status={campanha.status} />
+    /**
+     * O cartão inteiro é clicável sem ser um `<a>` gigante: o link do nome se
+     * estica por cima de tudo com `after:inset-0`. Isso resolve o problema que
+     * o lápis criou, um link dentro de outro link é HTML inválido e o navegador
+     * desmonta a página do jeito dele.
+     *
+     * O lápis fica acima da camada esticada (`z-10`) e continua clicável.
+     */
+    <li
+      className="entra group relative flex flex-col gap-5 rounded-lg border border-line
+        bg-surface p-5 transition-colors duration-base ease-soft
+        focus-within:border-ink-2 hover:border-ink-2 has-[details[open]]:z-30"
+      style={{ "--atraso": `${atraso}ms` } as React.CSSProperties}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 flex-col gap-1">
+          <h2 className="text-h3 leading-snug">
+            <Link
+              href={`/painel/cliente/${cliente.id}`}
+              className="rounded-sm after:absolute after:inset-0 after:content-['']
+                focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2
+                focus-visible:outline-brand-deep"
+            >
+              {cliente.nome}
+            </Link>
+          </h2>
+          <Contexto cliente={cliente} campanha={campanha} />
+        </div>
+
+        <div className="relative z-10 -mr-1.5 -mt-1.5 flex shrink-0 items-center">
+          <Link
+            href={editar}
+            scroll={false}
+            aria-label={`Editar ${cliente.nome}`}
+            className="flex size-9 items-center justify-center rounded-md border
+              border-line-strong bg-surface text-ink-2 transition-colors duration-fast ease-soft
+              hover:border-ink hover:bg-surface-2 hover:text-ink focus-visible:outline
+              focus-visible:outline-2 focus-visible:outline-offset-2
+              focus-visible:outline-brand-deep"
+          >
+            <Lapis className="h-4 w-4" />
+          </Link>
+
+          <MenuAcoes rotulo={`Mais ações de ${cliente.nome}`}>
+            <ItemMenu href={arquivar} icone={<Arquivar className="h-4 w-4" />}>
+              {cliente.arquivado_em ? "Desarquivar" : "Arquivar"}
+            </ItemMenu>
+            <ItemMenu
+              href={excluir}
+              icone={<Lixeira className="h-4 w-4" />}
+              tom="perigo"
+            >
+              Excluir cliente
+            </ItemMenu>
+          </MenuAcoes>
+        </div>
+      </div>
+
+      <div className="mt-auto flex flex-col gap-3">
+        <div className="flex items-baseline justify-between gap-3">
+          <span data-nums className="text-num-lg font-semibold tracking-tight">
+            {reais(cliente.recebido_centavos)}
+          </span>
+          <span data-nums className="text-body-sm text-muted">
+            {pct(cliente.recebido_centavos, cliente.vendido_centavos)}%
+          </span>
+        </div>
+
+        <Barra parte={cliente.recebido_centavos} total={cliente.vendido_centavos} />
+
+        <p className="text-caption text-muted">
+          <span data-nums>de {reais(cliente.vendido_centavos)}</span>
+          {" · "}
+          <span data-nums>{cliente.pedidos}</span>{" "}
+          {cliente.pedidos === 1 ? "pedido" : "pedidos"}
+          {prazo && (
+            <>
+              {" · "}
+              <span data-nums>até {prazo}</span>
+            </>
           )}
-        </div>
+        </p>
+      </div>
 
-        <div className="mt-auto flex flex-col gap-3">
-          <div className="flex items-baseline justify-between gap-3">
-            <span data-nums className="text-num-lg font-semibold tracking-tight">
-              {reais(cliente.recebido_centavos)}
-            </span>
-            <span data-nums className="text-body-sm text-muted">
-              {pct(cliente.recebido_centavos, cliente.vendido_centavos)}%
-            </span>
-          </div>
-
-          <Barra parte={cliente.recebido_centavos} total={cliente.vendido_centavos} />
-
-          <p className="text-caption text-muted">
-            <span data-nums>de {reais(cliente.vendido_centavos)}</span>
-            {" · "}
-            <span data-nums>{cliente.pedidos}</span>{" "}
-            {cliente.pedidos === 1 ? "pedido" : "pedidos"}
-            {prazo && (
-              <>
-                {" · "}
-                <span data-nums>até {prazo}</span>
-              </>
-            )}
-          </p>
-        </div>
-
-        <p className="border-t border-line pt-3 text-body-sm">
+      {/*
+        O selo desceu para cá quando o lápis ocupou o canto de cima. Estados
+        encerrados ficam próximos do resumo financeiro, sem competir com o nome.
+      */}
+      <div className="flex items-baseline justify-between gap-3 border-t border-line pt-3">
+        <p className="text-body-sm">
           {vencido ? (
             <>
               <Valor centavos={cliente.atrasado_centavos} tom="alerta" />{" "}
@@ -172,7 +227,11 @@ function CartaoCliente({
             <span className="text-muted">Nada vencido</span>
           )}
         </p>
-      </Link>
+        {/* Aberta é o esperado, então não vira selo. Ver o comentário acima. */}
+        {campanha && campanha.status !== "aberta" && (
+          <SeloCampanha status={campanha.status} />
+        )}
+      </div>
     </li>
   );
 }
@@ -227,10 +286,29 @@ function Apoio({ rotulo, valor }: { rotulo: string; valor: React.ReactNode }) {
 export default async function Clientes({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; novo?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    novo?: string;
+    editar?: string;
+    arquivar?: string;
+    excluir?: string;
+    arquivados?: string;
+  }>;
 }) {
-  const { q, novo } = await searchParams;
-  const [clientes, campanhas] = await Promise.all([listarClientes(q), listarTodasCampanhas()]);
+  const { q, novo, editar, arquivar, excluir, arquivados } = await searchParams;
+  const vendoArquivados = arquivados === "1";
+
+  // Uma consulta só serve as três gavetas: só uma delas abre por vez.
+  const alvo = editar || arquivar || excluir;
+
+  const [clientes, campanhas, emFoco] = await Promise.all([
+    listarClientes(q, arquivados),
+    listarTodasCampanhas(),
+    alvo ? buscarClienteCadastro(alvo) : null,
+  ]);
+
+  // O resumo traz `arquivado_em`, que o cadastro não carrega.
+  const naLista = alvo ? clientes.find((c) => c.id === alvo) : undefined;
 
   // Somas da empresa inteira. Vêm da lista já filtrada de propósito: buscar
   // "Cláudio" e ver o total do Brasil inteiro no lado seria o número mentindo
@@ -250,12 +328,18 @@ export default async function Clientes({
   const abertas = clientes.reduce((n, c) => n + c.campanhas_abertas, 0);
   const grupos = campanhas.reduce((n, c) => n + c.grupos, 0);
 
-  const fechar = q ? `/painel?q=${encodeURIComponent(q)}` : "/painel";
+  // A busca e a aba de arquivados sobrevivem a abrir e fechar gaveta: quem
+  // procurou "Cláudio" e clicou no lápis não pode voltar para a lista inteira.
+  const estado = [q ? `q=${encodeURIComponent(q)}` : "", vendoArquivados ? "arquivados=1" : ""]
+    .filter(Boolean)
+    .join("&");
+  const comBusca = (extra: string) => `/painel?${[estado, extra].filter(Boolean).join("&")}`;
+  const fechar = estado ? `/painel?${estado}` : "/painel";
 
   return (
     <>
       <Topo
-        titulo="Clientes"
+        titulo={vendoArquivados ? "Clientes arquivados" : "Clientes"}
         subtitulo={
           clientes.length > 0
             ? `${clientes.length} ${clientes.length === 1 ? "cliente" : "clientes"} · ${abertas} ${
@@ -267,7 +351,15 @@ export default async function Clientes({
           <>
             <Busca valor={q} placeholder="Buscar cliente" />
             <Link
-              href={q ? `/painel?q=${encodeURIComponent(q)}&novo=1` : "/painel?novo=1"}
+              href={vendoArquivados ? "/painel" : "/painel?arquivados=1"}
+              className="inline-flex h-10 shrink-0 items-center rounded-lg border border-line
+                px-3 text-body-sm font-medium text-ink-2 transition-colors duration-fast
+                ease-soft hover:border-line-strong hover:text-ink"
+            >
+              {vendoArquivados ? "Ativos" : "Arquivados"}
+            </Link>
+            <Link
+              href={comBusca("novo=1")}
               scroll={false}
               className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg bg-ink px-3.5
                 text-body-sm font-semibold text-white transition-[opacity,transform] duration-fast
@@ -317,6 +409,9 @@ export default async function Clientes({
                 cliente={c}
                 campanha={campanhaEmDestaque(campanhas, c.id)}
                 atraso={i * 40}
+                editar={comBusca(`editar=${c.id}`)}
+                arquivar={comBusca(`arquivar=${c.id}`)}
+                excluir={comBusca(`excluir=${c.id}`)}
               />
             ))}
           </ul>
@@ -349,7 +444,49 @@ export default async function Clientes({
         </div>
       )}
 
-      {novo && <NovoCliente fechar={fechar} />}
+      {/* Gaveta some se o id não existir: link velho não deixa a tela travada. */}
+      {novo && !alvo && <ClienteGaveta fechar={fechar} />}
+      {editar && emFoco && <ClienteGaveta cliente={emFoco} fechar={fechar} />}
+
+      {arquivar && emFoco && (
+        <Confirmar
+          titulo={naLista?.arquivado_em ? "Desarquivar cliente" : "Arquivar cliente"}
+          subtitulo={emFoco.nome}
+          tom="atencao"
+          consequencia={
+            naLista?.arquivado_em
+              ? "Volta para a lista de clientes. Nada mais muda."
+              : "Sai da lista de clientes. Campanhas, pedidos e pagamentos continuam como estão, e dá para desarquivar depois."
+          }
+          acao={arquivarCliente}
+          botao={naLista?.arquivado_em ? "Desarquivar" : "Arquivar"}
+          pendenteTexto="Salvando…"
+          ocultos={{
+            cliente_id: emFoco.id,
+            arquivar: naLista?.arquivado_em ? "0" : "1",
+            voltar: fechar,
+          }}
+          fechar={fechar}
+        />
+      )}
+
+      {excluir && emFoco && (
+        <Confirmar
+          titulo="Excluir cliente"
+          subtitulo={emFoco.nome}
+          consequencia={
+            <>
+              Apaga o cliente, as campanhas dele e as turmas dentro delas. Não tem
+              como desfazer. Cliente com pedido não pode ser excluído.
+            </>
+          }
+          acao={excluirCliente}
+          botao="Excluir para sempre"
+          pendenteTexto="Excluindo…"
+          ocultos={{ cliente_id: emFoco.id }}
+          fechar={fechar}
+        />
+      )}
     </>
   );
 }

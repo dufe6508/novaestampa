@@ -3,36 +3,34 @@ import type { Pedido } from "@/lib/aluno";
 /**
  * Selo de status.
  *
- * Sem pílula e sem fundo colorido. A versão anterior tinha os dois e o
- * resultado era um confete de retângulos coloridos: numa lista de sessenta
- * linhas, o que devia chamar atenção passava a ser ruído.
+ * Chip de fundo tom sobre tom, sem bolinha. A versão com ponto colorido caiu:
+ * numa tabela densa o ponto vira uma coluna de confete que não se lê de relance,
+ * e o texto ao lado dele ficava do mesmo peso do resto da linha.
  *
- * O que sobrou é o mínimo que ainda informa: um ponto na cor do estado e o
- * texto. Cor nunca informa sozinha, quem não distingue verde de vermelho lê
- * "Em atraso" do mesmo jeito.
+ * O que informa aqui é a área de cor, não um pixel. O fundo é a versão `soft` do
+ * token de estado, que é clara o bastante para não competir com o dinheiro
+ * vencido em vermelho cheio, e o texto vai na cor forte do mesmo par, o que
+ * garante o contraste.
  *
- * O texto fica em `ink-2` nos estados calmos e assume a cor só quando algo
- * exige ação. Assim o vermelho de "Em atraso" volta a ser o único vermelho da
- * tela, que é o que faz ele funcionar.
+ * Cor nunca informa sozinha: quem não distingue verde de vermelho lê "Em atraso"
+ * do mesmo jeito.
  */
 
 const TONS = {
-  neutro: { ponto: "bg-faint", texto: "text-muted" },
-  ok: { ponto: "bg-success", texto: "text-ink-2" },
-  atencao: { ponto: "bg-warning", texto: "text-ink-2" },
-  ruim: { ponto: "bg-danger", texto: "text-danger" },
+  neutro: "bg-surface-2 text-ink-2",
+  ok: "bg-success-soft text-success",
+  atencao: "bg-warning-soft text-warning",
+  ruim: "bg-danger-soft text-danger",
 } as const;
 
 type Tom = keyof typeof TONS;
 
 function Base({ tom, children }: { tom: Tom; children: React.ReactNode }) {
-  const t = TONS[tom];
   return (
     <span
-      className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap text-caption
-        font-medium leading-none ${t.texto}`}
+      className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-sm px-1.5 py-0.5
+        text-[11.5px] font-semibold leading-[1.4] ${TONS[tom]}`}
     >
-      <span aria-hidden className={`size-[5px] shrink-0 rounded-full ${t.ponto}`} />
       {children}
     </span>
   );
@@ -58,20 +56,31 @@ const PRODUCAO: Record<Pedido["status_producao"], { texto: string; tom: Tom }> =
   entregue: { texto: "Entregue", tom: "neutro" },
 };
 
-/**
- * Estado da campanha. `rascunho` fica em atenção, e não em neutro, de propósito:
- * campanha em rascunho não recebe pedido, e descobrir isso só quando o aluno
- * reclama é tarde demais.
- */
 const CAMPANHA: Record<string, { texto: string; tom: Tom }> = {
   aberta: { texto: "Aberta", tom: "ok" },
-  rascunho: { texto: "Rascunho", tom: "atencao" },
   encerrada: { texto: "Encerrada", tom: "neutro" },
   concluida: { texto: "Concluída", tom: "neutro" },
 };
 
+/**
+ * Situação do produto. `a_venda` não tem selo de propósito: estar à venda é o
+ * normal, e selar o normal faz a lista inteira piscar sem informar nada. Só a
+ * exceção recebe marca (mesma regra do cartão de lista, CLAUDE.md §5.1.1).
+ */
+const PRODUTO: Record<string, { texto: string; tom: Tom }> = {
+  pausado: { texto: "Venda pausada", tom: "atencao" },
+  oculto: { texto: "Oculto", tom: "neutro" },
+};
+
+export function SeloProduto({ situacao }: { situacao: string }) {
+  const s = PRODUTO[situacao];
+  if (!s) return null;
+  return <Base tom={s.tom}>{s.texto}</Base>;
+}
+
 export function SeloCampanha({ status }: { status: string }) {
-  const s = CAMPANHA[status] ?? CAMPANHA.encerrada;
+  const s = CAMPANHA[status];
+  if (!s) return null;
   return <Base tom={s.tom}>{s.texto}</Base>;
 }
 
@@ -84,15 +93,3 @@ export function SeloProducao({ status }: { status: Pedido["status_producao"] }) 
   const s = PRODUCAO[status];
   return <Base tom={s.tom}>{s.texto}</Base>;
 }
-
-/** Só o ponto, para quando o texto já está na coluna do lado. */
-export function Ponto({ status }: { status: Pedido["status_pagamento"] }) {
-  return (
-    <span
-      aria-hidden
-      className={`inline-block size-[5px] shrink-0 rounded-full ${TONS[PAGAMENTO[status].tom].ponto}`}
-    />
-  );
-}
-
-export const textoPagamento = (s: Pedido["status_pagamento"]) => PAGAMENTO[s].texto;

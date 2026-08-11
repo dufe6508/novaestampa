@@ -1,6 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { buscarProduto, buscarTurma, dia, diasAte, listarPecas } from "@/lib/aluno";
+import {
+  buscarProduto,
+  buscarTurma,
+  dia,
+  listarPecas,
+  podeComprar,
+  prazoDoProduto,
+} from "@/lib/aluno";
 import { reais } from "@/lib/supabase";
 import { Alerta, BotaoLink } from "@/components/campos";
 import { Galeria } from "@/components/galeria";
@@ -27,9 +34,12 @@ export default async function Produto({
   if (!produto) notFound();
 
   const pecas = produto.tipo === "kit" ? await listarPecas(produto.id) : [];
-  const restam = diasAte(turma.prazo_pedidos);
-  const fechada = turma.campanha_status !== "aberta" || (restam !== null && restam < 0);
+  const vendendo = podeComprar(turma, produto);
+  const prazos = prazoDoProduto(turma, produto);
   const entrada = Math.round((produto.preco_centavos * turma.percentual_entrada) / 100);
+  const parcelaMinima = Math.round(
+    (produto.preco_centavos - entrada) / Math.max(1, produto.max_parcelas - 1),
+  );
 
   return (
     <div className="flex flex-col gap-5">
@@ -53,9 +63,21 @@ export default async function Produto({
             </p>
             {turma.percentual_entrada < 100 && (
               <p className="text-body-sm text-muted">
-                Entrada de {reais(entrada)}, o resto na entrega
-                {turma.entrega_prevista ? ` em ${dia(turma.entrega_prevista)}` : ""}.
+                {produto.max_parcelas > 2 ? (
+                  <>
+                    Entrada de {reais(entrada)} e até {produto.max_parcelas - 1}x de{" "}
+                    {reais(parcelaMinima)}.
+                  </>
+                ) : (
+                  <>
+                    Entrada de {reais(entrada)}, o resto na entrega
+                    {turma.entrega_prevista ? ` em ${dia(turma.entrega_prevista)}` : ""}.
+                  </>
+                )}
               </p>
+            )}
+            {!produto.exige_nome && (
+              <p className="text-body-sm text-muted">Esta peça sai sem nome bordado.</p>
             )}
           </div>
 
@@ -73,19 +95,26 @@ export default async function Produto({
             </div>
           )}
 
-          {fechada ? (
+          {!vendendo ? (
             <Alerta>
-              O prazo de pedidos desta campanha terminou. Fale com seu representante.
+              {produto.situacao === "pausado"
+                ? "A venda desta peça está pausada. Fale com seu representante."
+                : prazos.pedidos
+                  ? `O prazo de pedidos terminou em ${dia(prazos.pedidos)}. Fale com seu representante.`
+                  : "Esta campanha não está mais aceitando pedidos."}
             </Alerta>
           ) : (
             // "Personalizar" e não "fazer pedido": o botão leva para escolher
             // tamanho e nome, não fecha compra nenhuma. Prometer pedido aqui
-            // faria o aluno hesitar em clicar.
+            // faria o aluno hesitar em clicar. Sem bordado a tela seguinte é só
+            // o tamanho, e o verbo muda junto.
             <BotaoLink
               href={`/t/${turma.codigo}/pedir/${produto.id}/personalizar`}
               className="w-full"
             >
-              Personalizar meu {produto.tipo === "kit" ? "kit" : "uniforme"}
+              {produto.exige_nome
+                ? `Personalizar meu ${produto.tipo === "kit" ? "kit" : "uniforme"}`
+                : "Escolher o tamanho"}
             </BotaoLink>
           )}
 

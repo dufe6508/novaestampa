@@ -21,12 +21,15 @@ export function FormEditar({
   tamanhoAtual,
   nomeAtual,
   maxCaracteres,
+  exigeNome = true,
 }: {
   acao: (estado: string | null, dados: FormData) => Promise<string | undefined>;
   tamanhos: string[];
   tamanhoAtual: string;
   nomeAtual: string;
   maxCaracteres: number;
+  /** Falso é a peça sem bordado: sobra o tamanho, e é só isso que se edita. */
+  exigeNome?: boolean;
 }) {
   const [erroServidor, formAction, pendente] = useActionState(
     async (estado: string | null, dados: FormData) => (await acao(estado, dados)) ?? null,
@@ -37,9 +40,23 @@ export function FormEditar({
   const [confirma, setConfirma] = useState("");
 
   const mudou = limpar(nome) !== limpar(nomeAtual);
-  const confere = !mudou || limpar(nome) === limpar(confirma);
-  const vazio = limpar(nome).length === 0;
-  const restantes = maxCaracteres - nome.length;
+  const confere = !exigeNome || !mudou || limpar(nome) === limpar(confirma);
+  const vazio = exigeNome && limpar(nome).length === 0;
+
+  if (!exigeNome) {
+    return (
+      <form action={formAction} className="flex flex-col gap-6">
+        <Tamanhos nome="t" opcoes={tamanhos} padrao={tamanhoAtual} />
+        <input type="hidden" name="nome" value="" />
+
+        {erroServidor && <Alerta tom="erro">{erroServidor}</Alerta>}
+
+        <Botao type="submit" disabled={pendente}>
+          {pendente ? "Salvando…" : "Salvar alteração"}
+        </Botao>
+      </form>
+    );
+  }
 
   return (
     <form action={formAction} className="flex flex-col gap-6">

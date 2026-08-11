@@ -255,7 +255,7 @@ select seed_campanha(
 );
 
 -- ------------------------------------------------------------
--- Cliente 3 · empresa, campanha em rascunho (grupo se chama "Setor")
+-- Cliente 3 · empresa, campanha aberta (grupo se chama "Setor")
 -- ------------------------------------------------------------
 with c as (
   insert into cliente (nome, tipo, cidade, contato_nome, contato_telefone)
@@ -264,7 +264,7 @@ with c as (
 )
 insert into campanha (cliente_id, nome, status, label_grupo, label_grupo_plural,
                       prazo_pedidos, prazo_alteracoes, entrega_prevista, percentual_entrada)
-select id, 'Uniformes 2026', 'rascunho', 'Setor', 'Setores',
+select id, 'Uniformes 2026', 'aberta', 'Setor', 'Setores',
        current_date + 30, current_date + 35, current_date + 80, 50
 from c;
 

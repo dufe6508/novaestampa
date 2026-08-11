@@ -23,8 +23,37 @@ export const PREFIXO_BABY_LOOK = "BL ";
 
 export function tamanhoLegivel(t: string) {
   return t.startsWith(PREFIXO_BABY_LOOK)
-    ? `${t.slice(PREFIXO_BABY_LOOK.length)} baby look`
+    ? `${t.slice(PREFIXO_BABY_LOOK.length)} Baby Look`
     : t;
+}
+
+/**
+ * Dinheiro, com máscara enquanto digita: "15990" vira "R$ 159,90".
+ *
+ * Só dígitos entram, e o último par sempre são os centavos. É o teclado
+ * numérico do celular funcionando sozinho: quem digita não precisa achar a
+ * vírgula, nem decidir se escreve ponto ou vírgula, e o campo nunca aceita
+ * "159.90,5". O valor sai daqui já pronto para virar inteiro em centavos.
+ */
+export function mascaraDinheiro(valor: string) {
+  const d = valor.replace(/\D/g, "").slice(0, 11);
+  if (!d) return "";
+  return `R$ ${(Number(d) / 100).toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+/**
+ * O caminho de volta: "R$ 159,90" vira 15990.
+ *
+ * Lê só os dígitos, pela mesma razão da máscara. Aceita o que vier de um campo
+ * mascarado, de um colado à mão ("159,90") e do que sobrar quando o JavaScript
+ * não roda ("15990").
+ */
+export function centavosDe(valor: string) {
+  const d = valor.replace(/\D/g, "");
+  return d ? Number(d) : NaN;
 }
 
 /**
@@ -67,26 +96,23 @@ export const PADRAO_NOME_COMPLETO = "\\s*\\S{2,}(\\s+\\S+)*\\s+\\S{2,}\\s*";
  * Quem digita no celular digita "joão fernandes", e o nome aparece assim na
  * lista da produção, na peça e no painel. Subir a inicial arruma isso sem
  * mexer no resto do que a pessoa escreveu: `trim`, colapso de espaço duplo e
- * primeira letra de cada palavra.
+ * primeira letra de cada palavra, inclusive quando ela vem logo depois de um
+ * número, como em "3a série".
  *
  * O resto das letras fica como veio, de propósito. Baixar tudo estragaria
  * "MacHado" e "LG"; subir tudo entregaria "FERNANDES", peça diferente da que
  * o aluno viu na tela, que é a decisão registrada no CLAUDE.md §3.5.
  *
- * Partícula de ligação continua minúscula, porque em nome brasileiro é assim
- * que se escreve: "Ana de Sá", não "Ana De Sá".
+ * A interface usa iniciais maiúsculas em todas as palavras para manter a
+ * leitura uniforme entre nomes, turmas, campanhas e produtos.
  */
-const PARTICULAS = new Set(["de", "da", "do", "das", "dos", "e", "di", "du", "van", "von"]);
-
 export function capitalizarNome(valor: string) {
   return valor
     .trim()
     .replace(/\s+/g, " ")
-    .split(" ")
-    .map((p, i) =>
-      i > 0 && PARTICULAS.has(p.toLowerCase()) ? p.toLowerCase() : maiusculaInicial(p),
-    )
-    .join(" ");
+    .replace(/(^|[\s\d])(\p{L})/gu, (_, antes: string, letra: string) =>
+      antes + letra.toLocaleUpperCase("pt-BR"),
+    );
 }
 
 /**
@@ -97,13 +123,16 @@ export function capitalizarNome(valor: string) {
  * palavra. E não baixa partícula, porque "de" só vira minúscula depois de virar
  * palavra do meio, e no meio da digitação ainda não dá para saber.
  *
- * Sobe a primeira letra e a que vem depois de cada espaço. O resto fica como
- * veio, pelo mesmo motivo de sempre: não estragar "MacHado".
+ * Sobe a primeira letra, a que vem depois de cada espaço e a que vem depois de
+ * um número. O resto fica como veio, pelo mesmo motivo de sempre: não estragar
+ * "MacHado".
  *
  * A normalização de verdade continua no envio, no servidor.
  */
 export function capitalizarDigitando(valor: string) {
-  return valor.replace(/(^|\s)(\S)/g, (_, antes: string, letra: string) => antes + letra.toUpperCase());
+  return valor.replace(/(^|[\s\d])(\p{L})/gu, (_, antes: string, letra: string) =>
+    antes + letra.toLocaleUpperCase("pt-BR"),
+  );
 }
 
 /** Frase livre, como o motivo de uma liberação. Só a primeira letra. */

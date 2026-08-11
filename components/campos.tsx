@@ -5,6 +5,7 @@ import {
   PADRAO_TELEFONE,
   PREFIXO_BABY_LOOK,
   capitalizarDigitando,
+  mascaraDinheiro,
   mascaraTelefone,
 } from "@/lib/formato";
 
@@ -283,6 +284,156 @@ export function Tamanhos({
   );
 }
 
+/**
+ * Preço, com a máscara de dinheiro enquanto digita.
+ *
+ * "15990" vira "R$ 159,90" na hora. Quem cadastra produto faz isso no celular,
+ * com o teclado numérico, e sem a máscara precisaria achar a vírgula e decidir
+ * entre ponto e vírgula, que é onde nasce o produto cadastrado por dez vezes o
+ * preço. O servidor lê só os dígitos, então o valor chega igual com ou sem
+ * JavaScript.
+ *
+ * ponytail: reescreve o valor no próprio input, mesma abordagem do telefone e
+ * do nome. O cursor vai para o fim, que aqui é o certo: dinheiro se digita da
+ * direita para a esquerda.
+ */
+export function CampoPreco(props: React.ComponentProps<typeof Campo>) {
+  return (
+    <Campo
+      inputMode="numeric"
+      autoComplete="off"
+      placeholder="R$ 0,00"
+      className="text-num font-semibold tabular-nums"
+      {...props}
+      onInput={(e) => {
+        e.currentTarget.value = mascaraDinheiro(e.currentTarget.value);
+      }}
+    />
+  );
+}
+
+/**
+ * Data. `input type="date"` é o calendário do próprio sistema: no celular abre
+ * o seletor nativo, funciona sem JavaScript e já vem traduzido. Nenhuma
+ * biblioteca de calendário faz melhor, e todas pesam mais.
+ */
+export function CampoData(props: React.ComponentProps<typeof Campo>) {
+  return (
+    <Campo
+      type="date"
+      {...props}
+      className={`[&::-webkit-calendar-picker-indicator]:cursor-pointer ${props.className ?? ""}`}
+    />
+  );
+}
+
+/**
+ * Escolha única em pílula. Rádio de verdade, nunca `select`.
+ *
+ * O `select` do navegador abre uma lista desenhada pelo sistema operacional e
+ * ignora o resto da interface. Enquanto couberem numa linha ou duas, as opções
+ * ficam à mostra, e escolher é um toque em vez de dois.
+ *
+ * Nasceu duplicado no tipo do cliente e no rótulo do grupo. Virou um só quando
+ * o cadastro de produto precisou dele pela quarta vez.
+ */
+export function Opcoes({
+  nome,
+  legenda,
+  opcoes,
+  atual,
+  ajuda,
+}: {
+  nome: string;
+  legenda: string;
+  opcoes: { valor: string; texto: string }[];
+  atual: string;
+  ajuda?: string;
+}) {
+  return (
+    <fieldset className="flex flex-col gap-1.5">
+      <legend className="text-caption font-semibold text-ink-2">{legenda}</legend>
+      <div className="flex flex-wrap gap-2">
+        {opcoes.map((o) => (
+          <label
+            key={o.valor}
+            className="cursor-pointer rounded-lg has-[:focus-visible]:outline
+              has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2
+              has-[:focus-visible]:outline-brand-deep"
+          >
+            <input
+              type="radio"
+              name={nome}
+              value={o.valor}
+              defaultChecked={atual === o.valor}
+              className="peer sr-only"
+            />
+            <span
+              className="flex h-10 items-center justify-center whitespace-nowrap rounded-lg border
+                border-line-strong bg-surface px-3 text-body-sm font-semibold text-ink-2
+                transition-[color,background-color,border-color,transform] duration-fast ease-soft
+                hover:border-ink hover:text-ink active:scale-[0.97] peer-checked:border-ink
+                peer-checked:bg-ink peer-checked:text-white motion-reduce:active:scale-100"
+            >
+              {o.texto}
+            </span>
+          </label>
+        ))}
+      </div>
+      {ajuda && <p className="text-caption leading-snug text-muted">{ajuda}</p>}
+    </fieldset>
+  );
+}
+
+/**
+ * Escolha múltipla em pílula, mesma casca do `Opcoes`. É a grade de tamanhos do
+ * produto: a mesma forma que o aluno vai ver para escolher, montada aqui.
+ */
+export function Marcadores({
+  nome,
+  legenda,
+  opcoes,
+  marcados,
+}: {
+  nome: string;
+  legenda: string;
+  opcoes: { valor: string; texto: string }[];
+  marcados: string[];
+}) {
+  return (
+    <fieldset className="flex flex-col gap-1.5">
+      <legend className="text-caption font-semibold text-ink-2">{legenda}</legend>
+      <div className="flex flex-wrap gap-2">
+        {opcoes.map((o) => (
+          <label
+            key={o.valor}
+            className="cursor-pointer rounded-lg has-[:focus-visible]:outline
+              has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2
+              has-[:focus-visible]:outline-brand-deep"
+          >
+            <input
+              type="checkbox"
+              name={nome}
+              value={o.valor}
+              defaultChecked={marcados.includes(o.valor)}
+              className="peer sr-only"
+            />
+            <span
+              className="flex h-10 min-w-11 items-center justify-center whitespace-nowrap rounded-lg
+                border border-line-strong bg-surface px-3 text-body-sm font-semibold text-ink-2
+                transition-[color,background-color,border-color,transform] duration-fast ease-soft
+                hover:border-ink hover:text-ink active:scale-[0.97] peer-checked:border-ink
+                peer-checked:bg-ink peer-checked:text-white motion-reduce:active:scale-100"
+            >
+              {o.texto}
+            </span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
 export function Alerta({
   tom = "atencao",
   children,
@@ -303,6 +454,42 @@ export function Alerta({
     >
       {children}
     </p>
+  );
+}
+
+/** Campo de texto longo. Mesma casca do `Campo`, com altura para respirar. */
+export function Area({
+  etiqueta,
+  ajuda,
+  className = "",
+  id,
+  ...props
+}: React.TextareaHTMLAttributes<HTMLTextAreaElement> & {
+  etiqueta: string;
+  ajuda?: string;
+}) {
+  const idAjuda = ajuda ? `${id}-ajuda` : undefined;
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={id} className="text-caption font-semibold text-ink-2">
+        {etiqueta}
+      </label>
+      <textarea
+        id={id}
+        rows={3}
+        aria-describedby={idAjuda}
+        className={`w-full rounded-lg border bg-surface px-3.5 py-2.5 text-body text-ink
+          outline-none transition-[border-color,box-shadow] duration-base ease-soft
+          placeholder:text-faint ${CAMPO_OK} ${className}`}
+        {...props}
+      />
+      {ajuda && (
+        <p id={idAjuda} className="text-caption leading-snug text-muted">
+          {ajuda}
+        </p>
+      )}
+    </div>
   );
 }
 

@@ -82,7 +82,7 @@ export default async function EntrarNaEmpresa() {
               name="nome"
               etiqueta="Seu nome"
               required
-              placeholder="Márcia D'Ávila"
+              placeholder="Nome e sobrenome"
             />
             <Campo
               id="empresa-email"
@@ -91,13 +91,13 @@ export default async function EntrarNaEmpresa() {
               type="email"
               required
               autoComplete="email"
-              placeholder="voce@novaestampa.com.br"
+              placeholder="seuemail@email.com"
             />
             <CampoTelefone
               id="empresa-telefone"
               name="telefone"
               etiqueta="Telefone"
-              ajuda="Opcional."
+              ajuda="Opcional"
             />
             <CampoCodigo />
           </FormAcao>

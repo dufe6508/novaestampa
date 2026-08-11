@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
-import { buscarTurmaPainel, pct } from "@/lib/painel";
-import { Topo } from "@/components/painel";
+import { buscarTurmaPainel } from "@/lib/painel";
+import { Quitados, Topo } from "@/components/painel";
 import { PlanilhaTurma, type QueryPlanilha } from "@/components/planilha-turma";
 
 /**
@@ -29,6 +29,7 @@ export default async function Turma({
   return (
     <>
       <Topo
+        voltar={`/painel/campanha/${campanha.id}`}
         migalha={[
           { texto: "Clientes", href: "/painel" },
           { texto: campanha.cliente_nome, href: `/painel/cliente/${campanha.cliente_id}` },
@@ -40,7 +41,7 @@ export default async function Turma({
           <span data-nums>
             {grupo.pedidos} {grupo.pedidos === 1 ? "pedido" : "pedidos"} ·{" "}
             {grupo.alunos_com_pedido} {grupo.alunos_com_pedido === 1 ? "aluno" : "alunos"} ·{" "}
-            {grupo.pedidos_pagos} quitados ({pct(grupo.pedidos_pagos, grupo.pedidos)}%) · código{" "}
+            <Quitados pagos={grupo.pedidos_pagos} total={grupo.pedidos} /> quitados · código{" "}
             <span className="font-mono tracking-wider text-ink-2">{grupo.codigo}</span>
           </span>
         }

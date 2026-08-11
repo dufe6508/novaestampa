@@ -30,6 +30,7 @@ export function FormPersonalizar({
   codigo,
   produtoId,
   maxCaracteres,
+  exigeNome = true,
   pecas,
   prefill,
   foco,
@@ -37,6 +38,8 @@ export function FormPersonalizar({
   codigo: string;
   produtoId: string;
   maxCaracteres: number;
+  /** Falso é o moletom: a peça sai sem bordado e a tela vira só tamanho. */
+  exigeNome?: boolean;
   pecas: Peca[];
   prefill: Prefill[];
   foco?: "nome" | "tamanho";
@@ -65,8 +68,8 @@ export function FormPersonalizar({
     [pecas, extras, nome],
   );
 
-  const preenchido = limpar(nome).length > 0;
-  const confere = limpar(nome) === limpar(confirma);
+  const preenchido = !exigeNome || limpar(nome).length > 0;
+  const confere = !exigeNome || limpar(nome) === limpar(confirma);
   const completo = pecas.every((_, i) => tamanhos[i]);
 
   function enviar(e: React.FormEvent<HTMLFormElement>) {
@@ -78,7 +81,8 @@ export function FormPersonalizar({
     if (escolhidos.some((t) => !t)) return setErro("Escolha um tamanho para continuar.");
     if (!preenchido) return setErro("Digite o nome que vai na peça.");
     if (!confere) return setErro("Os dois nomes estão diferentes. Confira a digitação.");
-    if (nomes.some((n) => n.length === 0)) return setErro("Uma das peças ficou sem nome.");
+    if (exigeNome && nomes.some((n) => n.length === 0))
+      return setErro("Uma das peças ficou sem nome.");
 
     setErro(null);
     setIndo(true);
@@ -113,6 +117,9 @@ export function FormPersonalizar({
         </div>
       ))}
 
+      {/* Peça sem bordado pula os dois campos e o preview: eles existem só para
+          conferir letra, e não há letra nenhuma para conferir. */}
+      {exigeNome && (
       <div className="flex flex-col gap-4 border-t border-line pt-6">
         <Campo
           id="nome"
@@ -139,7 +146,9 @@ export function FormPersonalizar({
           erro={confirma.length > 0 && !confere ? "Os dois nomes estão diferentes." : undefined}
         />
       </div>
+      )}
 
+      {exigeNome && (
       <section className="flex flex-col gap-3 rounded-xl border border-line bg-surface p-5">
         <p className="label text-muted">Como vai ficar</p>
 
@@ -178,6 +187,7 @@ export function FormPersonalizar({
           ))}
         </div>
       </section>
+      )}
 
       {erro && <Alerta tom="erro">{erro}</Alerta>}
 

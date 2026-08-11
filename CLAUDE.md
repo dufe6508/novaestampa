@@ -94,7 +94,31 @@ Cliente        (escola / faculdade / empresa)
 - **A grade inclui baby look.** Vem na mesma lista `tamanhos`, prefixada com `BL ` (`BL M`).
   Na escolha, a tela separa em dois blocos rotulados; em texto corrido vira "M baby look".
   Prefixo em vez de coluna nova: não muda schema e a produção lê o tamanho literal.
-- **Personalização é obrigatória**: todo produto leva nome estampado.
+- **Personalização é por produto** (mudou em 11/08/2026; antes era obrigatória em todo
+  produto). O moletom é o caso real: sai sem nome. O produto tem `exige_nome`, e quando ele
+  é falso a tela de personalização some do fluxo, junto com a dupla digitação do apelido.
+  **Resolvido em 11/08/2026:** o `CHECK length(trim()) > 0` de `pedido_item.nome_estampa`
+  caiu e esses produtos gravam string vazia. Nulo obrigaria tratar a ausência em dez telas
+  (planilha, gaveta, editar, revisão, carteira); vazio já cai bem em todas, e a coluna "Nome
+  ou Apelido" da planilha (§3.8) sai em branco, que é o que o modelo de papel pede.
+- **Produto tem situação, não um liga-desliga** (11/08/2026). São três estados:
+  `a_venda` aparece na loja e vende, `pausado` aparece sem botão de pedir,
+  `oculto` some da vitrine. `produto.ativo` continua existindo como **coluna
+  gerada** (`situacao = 'a_venda'`), então todo código que já pergunta por ele
+  segue valendo e a fonte da verdade continua sendo uma só.
+- **Produto tem classe** (`camisa`, `moletom`, `polo`, `outro`), como `text` com
+  `check` e não `enum`: acrescentar "boné" depois é trocar a constraint, não
+  alterar tipo. Serve para agrupar e filtrar, nunca muda regra de negócio.
+- **Parcelamento é do produto** (`max_parcelas`, 1 a 12). A campanha continua
+  dona do percentual de entrada; o produto diz em quantas vezes o resto pode
+  ser dividido, e o aluno escolhe na revisão, até esse teto. A primeira parcela
+  é sempre a entrada, que é a que libera produção; `1` quer dizer à vista.
+  Intermediárias vencem de 30 em 30 dias, a última na entrega prevista e
+  **absorve a sobra de centavos**, porque a soma tem que bater com o total.
+- **Produto pode ter prazos próprios** (`prazo_pedidos`, `prazo_alteracoes`).
+  Nulos herdam os da campanha. Existe para fechar a camisa antes do moletom sem
+  encerrar a campanha inteira, e é `coalesce(produto, campanha)` em toda regra,
+  no banco e na tela.
 - **Não existe carrinho com vários produtos.** Um pedido = um produto.
 - **O aluno pode fazer quantos pedidos quiser**, várias camisetas, vários moletons. Não há
   limite por aluno nem por grupo.
@@ -490,7 +514,7 @@ view pública. Aguardando autorização para mexer no schema.
 | E4 | Grupo | abas **Pedidos** e **Produção** | pronta |
 | E5 | Pedido | detalhe, registrar pagamento, liberar produção | pronta, painel lateral sobre a E4 |
 | E6 | Novo pedido manual | quem pagou em dinheiro | **falta** |
-| E7 | Produtos da campanha | cadastro com foto | **falta** |
+| E7 | Produtos da campanha | cadastro com foto | pronta, aba da E3 |
 | E8 | Grupos da campanha | código de acesso | **falta** |
 | E9 | Exportar | xlsx no modelo de papel da empresa | pronta |
 | E10 | Criar cliente · criar campanha | prazos, entrada, labels | cliente pronto, campanha **falta** |
@@ -499,10 +523,15 @@ view pública. Aguardando autorização para mexer no schema.
 base e reorganizado, não descartado):
 
 ```
-/painel                 Clientes, um card por escola     ← home
-/painel/cliente/[id]    campanha ativa já aberta + turmas
-/painel/campanha/[id]   visão geral · turmas · pedidos · produção · produtos
-/painel/turma/[id]      pedidos · produção · exportar
+/painel                          Clientes, um card por escola     ← home
+/painel/cliente/[id]             campanha ativa já aberta + turmas
+/painel/campanha/[id]            visão geral · turmas · pedidos · produção · produtos
+/painel/campanha/[id]/cobranca   fila de cobrança, filtro por turma  (?s=atrasado)
+/painel/turma/[id]               pedidos · produção · exportar
+/painel/produtos                 leitura dos produtos entre campanhas
+/painel/arquivados               clientes arquivados · campanhas encerradas
+/painel/config                   configurações gerais da empresa
+/painel/financeiro               relatório financeiro reservado para planejamento
 ```
 
 - **Home é Clientes**, não campanhas: é assim que a dona pensa. Cada card carrega a
@@ -517,7 +546,7 @@ base e reorganizado, não descartado):
   empresa inteira na home, campanha no cliente, turma na turma.
 - Rótulo do grupo sai da campanha (`label_grupo_plural`): a Vega mostra "3 setores", a
   escola mostra "12 turmas".
-- Status da campanha aparece **em palavra**, não só em cor: Aberta, Rascunho, Encerrada.
+- Status da campanha aparece **em palavra**, não só em cor: Aberta, Encerrada, Concluída.
 - Os totais da home somam **a lista filtrada**: buscar "Cláudio" e ver o total geral no
   lado seria o número mentindo sobre o que está na tela.
 
@@ -529,8 +558,12 @@ JSON.
 demo (§6) começa em "admin cria cliente", e hoje ela só roda porque o seed criou tudo à mão.
 É esse o próximo passo do projeto.
 
-**Configurações saiu do escopo** por decisão do usuário. **Produtos só a Nova Estampa edita**,
-não a comissão nem o representante, o que exige um papel que ainda não existe no banco.
+**Navegação ampliada em 11/08/2026.** O menu lateral ganhou Financeiro, Produtos,
+Arquivados e Configurações. Financeiro fica apenas como destino reservado até a conversa
+dedicada ao relatório completo. Produtos é uma leitura entre campanhas, sem criar catálogo
+global. Arquivados preserva histórico, e Configurações começa como mapa dos controles gerais.
+**Produtos só a Nova Estampa edita**, não a comissão nem o representante, o que exige um
+papel que ainda não existe no banco.
 
 **Três níveis de acesso, já implementados** (ver §3.3): empresa vê tudo em `/painel`,
 representante vê só a turma dele em `/t/[codigo]/gestao`, aluno não vê nada disso. Quem não
@@ -571,9 +604,8 @@ proposta solta. **Perguntar antes de montar.** Referências ficam em `referencia
 - No painel, usar **a melhor parte de cada referência conforme o contexto**. Para financeiro
   e qualquer coisa com números, o que Stripe/Attio/Shopify fazem de melhor: alinhamento,
   números tabulares, densidade legível.
-- **Fotos de produto vão existir**, o admin faz upload ao criar o produto. É isso que
-  sustenta a vitrine. **Pendência:** o schema ainda não tem campo de imagem; adicionar
-  quando o usuário autorizar mexer no banco.
+- **Fotos de produto existem**, e o admin sobe ao cadastrar o produto (§5.1.4). É isso que
+  sustenta a vitrine. `produto.imagens` é `text[]`, e `imagens[1]` é a capa.
 
 ### 5.1 Decisões visuais tomadas
 
@@ -597,9 +629,8 @@ todo cartão de lista do painel (cliente, campanha, turma):
   (valor, "de X", percentual e barra) no mesmo tamanho, e nenhuma ganhava.
 - **Sem rótulo em caixa alta acima de número.** `PEDIDOS` sobre `355` gasta uma linha para
   nomear o que o dado já diz. Vira frase corrida: "de R$ 45.986,40 · 355 pedidos".
-- **Selo só na exceção.** Campanha aberta é o normal e não recebe selo. Só aparecem
-  `Rascunho` (não recebe pedido) e `Encerrada`. Isso tira o ponto colorido de todo cartão e
-  devolve a atenção para o que está fora do padrão.
+- **Selo só na exceção.** Campanha aberta é o normal. Estados encerrados recebem o selo
+  quando o contexto precisa diferenciá-los, sem competir com o valor principal do cartão.
 - **Sem sombra em cartão de lista.** Já era o que o token mandava (`elevação: card em lista
   é borda, não sombra`) e o código não cumpria. Ficou borda de 1px, e o hover escurece o
   traço em vez de levantar a peça.
@@ -609,6 +640,107 @@ moldura, senão o painel inteiro pintado compete com o dado que pede ação.
 
 O trilho da `Barra` é `line`, não `surface-2`: no branco do cartão o tom antigo sumia, só o
 pedaço preenchido aparecia, e embaixo de um número grande ele lia como sublinhado.
+
+### 5.1.2 Painel · segunda rodada, 11/08/2026
+
+Sete mudanças, todas nascidas de olhar a tela pronta:
+
+- **Cobrança virou tela, não legenda.** Os três cartões (`Em atraso`, `Pagou só a
+  entrada`, `Sem pagamento nenhum`) são clicáveis e levam a
+  `/painel/campanha/[id]/cobranca?s=`, com filtro por turma, busca por nome e a mesma
+  gaveta de pedido da turma. Caiu o rodapé "e mais 65, abra a turma para ver a lista
+  inteira": o cartão sabia o tamanho do problema e mandava a dona procurar turma por
+  turma. Os dois últimos títulos foram reescritos para descrever a pessoa, não a régua.
+- **Selo de status é chip tom sobre tom**, sem bolinha. O ponto colorido virava uma
+  coluna de confete em lista longa. Agora informa a área de cor (`*-soft` de fundo, cor
+  forte no texto), e o texto continua obrigatório.
+- **Resumo de corte é retrátil** (`Retratil`, `details` nativo), fechado por padrão, com
+  a contagem de peças na linha fechada. Aberto, os tamanhos viram grade de caixinhas
+  (rótulo em cima, número embaixo) em vez de texto corrido "M 40 · G 22".
+- **"Saldo" virou "Falta pagar"** na tabela da turma.
+- **`Quitados`** é um componente: contagem em corpo normal, percentual entre parênteses
+  em `caption`. Sem os dois números do mesmo tamanho brigando.
+- **Seta de voltar** (`Topo voltar=`) em campanha, turma e cobrança. Redundante com a
+  trilha no desktop, essencial no celular, onde a trilha é texto miúdo.
+- **Tabela de turmas enxuta.** Vendido e Recebido saíram (já estão somados nos KPIs
+  acima). Contagem centraliza, dinheiro alinha à direita, sempre: dinheiro centralizado
+  desalinha a vírgula e mata a comparação entre linhas. Abaixo de 768px vira lista.
+
+Mais três, na lista e no detalhe:
+
+- **Produção ganhou filtro de tamanho**, dentro do card, colado na lista. É também o
+  resumo de corte da turma: a contagem no botão é quantas peças daquele tamanho saem da
+  mesa. A tabela apertou (linha de 2, não 2.5), e `Tam.` e `Qtd` ganharam largura própria
+  com o número centralizado.
+- **Exportar pergunta os tamanhos** numa gaveta (`ExportarGaveta`), formulário `GET` puro
+  sem JavaScript. Nada marcado sai a grade inteira, que é o padrão antigo. O tamanho
+  escolhido entra no nome do arquivo.
+- **Baixa de pagamento reorganizada.** Três degraus por parcela: título com o selo,
+  histórico do que já foi pago, e a baixa isolada numa caixa no rodapé. Os campos se
+  nomeiam ("Valor recebido" com o saldo de sugestão, botões sob "Forma de pagamento"), e
+  por isso o parágrafo "Sem valor, a baixa quita a parcela inteira" caiu.
+- **`ResumoProdutos`** responde "quantas camisas e quantos moletons": pedidos, peças,
+  quitados e a receber por produto. Aparece na campanha como bloco e na turma como
+  retrátil. Pedido e peça são contagens diferentes de propósito, kit e quantidade maior
+  que um descolam as duas, e quem compra tecido precisa da de peças.
+
+### 5.1.3 Campanha e produção · terceira rodada, 11/08/2026
+
+- **Rascunho deixou de ser um estado da campanha.** Campanhas novas começam abertas e o
+  formulário oferece somente Aberta, Encerrada e Concluída. Schema, seed, ações e selos
+  seguem o mesmo contrato.
+- **Cobrança virou um único bloco compacto.** Em atraso, Entrada recebida e Pagamento
+  pendente são linhas de acompanhamento com descrições formais, totais e uma prévia curta
+  dos pedidos, preservando a informação sem multiplicar cartões.
+- **Vendas por produto virou resumo tabular.** Produto, peças, quitados e valor em aberto
+  ficam alinhados para comparação, com atraso destacado apenas quando existe.
+- **Cartões de turma têm uma hierarquia única.** A receber é o valor principal; vencido,
+  pedidos, quitados e quantidade vencida permanecem visíveis em uma base compacta.
+- **Produção usa o título Quantidades para corte.** Cada produto ocupa uma linha e os
+  tamanhos formam uma faixa contínua, reduzindo caixas e mantendo a leitura operacional.
+- **Exportação consolidada por campanha.** A produção permite selecionar turmas e baixar
+  uma única planilha, separada internamente por turma, produto e tamanho. Nenhuma seleção
+  significa exportar todas as turmas com peças liberadas.
+
+Também caiu o texto "Quem pediu duas peças conta como um aluno e dois pedidos".
+
+### 5.1.4 Cadastro de produto · 11/08/2026
+
+A loja do aluno passou a nascer do painel. O produto é cadastrado dentro da
+campanha, na aba **Produtos** da E3, e a vitrine é consequência: salvar derruba
+o cache (`invalidarPainel`) e o produto aparece na loja no mesmo segundo.
+
+- **É aba, não rota nova.** `/painel/campanha/[id]?aba=produtos`, e o cadastro
+  abre na gaveta com `?produto=novo` ou `?produto=<id>`, o mesmo padrão de
+  cliente e campanha. Produto fora da campanha não teria onde pousar.
+- **Lista, não grade de cartões.** A pergunta aqui é operacional ("o que está à
+  venda, por quanto, em que grade"), e lista compara linha a linha. A foto entra
+  pequena, só para reconhecer a peça.
+- **Lápis à mostra, o resto nos três pontos.** Editar é a ação de sempre.
+  Pausar venda, ocultar da loja e excluir são raras, e duas delas perigosas.
+  Pausar e ocultar **não passam por confirmação**: desfazem num clique, e mandar
+  as duas para uma tela de "tem certeza?" ensina a confirmar sem ler, que é o
+  que estraga a confirmação de excluir, essa sim definitiva.
+- **Excluir só sem pedido.** `pedido.produto_id` é `ON DELETE RESTRICT`, então o
+  banco é a trava real; a tela conta antes para dizer o motivo em português e
+  oferecer ocultar, que costuma ser o que a pessoa queria. Excluir apaga as
+  fotos do bucket junto.
+- **Lápis e três pontos ganharam moldura** (o par era `text-faint` sem borda e
+  sumia no branco do cartão). Borda de 1px, texto em `ink-2`, alvo de 36px.
+- **Preço com máscara de dinheiro.** "15990" vira "R$ 159,90" enquanto digita.
+  Quem cadastra faz isso no celular, com teclado numérico, e sem máscara
+  precisaria achar a vírgula e escolher entre ponto e vírgula, que é onde nasce
+  o produto cadastrado por dez vezes o preço. O servidor lê só os dígitos
+  (`centavosDe`), então o valor chega igual com ou sem JavaScript.
+- **Upload: comprime no navegador, sobe por rota, não por Server Action.**
+  Redimensiona para 1600 px e converte para webp no aparelho; cada foto vai
+  numa requisição para `POST /painel/foto`, que valida acesso de empresa, tipo e
+  tamanho e grava com a chave de serviço. Server Action aceita 1 MB de corpo por
+  padrão na Vercel, e subir direto do navegador exigiria abrir escrita do bucket
+  para `anon`. A capa é `imagens[1]`, trocada por botão, não arrastando.
+- **Sem formulário de kit nesta rodada.** O kit está desligado
+  (`situacao = 'oculto'`) por decisão do usuário, e a tela de componentes é
+  outra tela inteira.
 
 **Por que foto na vitrine e SVG no preview** (a combinação é proposital): a foto vende e
 mostra caimento; o SVG garante que o nome apareça sempre na mesma posição, com o mesmo

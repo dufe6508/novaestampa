@@ -42,7 +42,7 @@ export function FormEntrar({
         id="telefone"
         name="telefone"
         etiqueta="Telefone"
-        ajuda="Opcional. Serve para falarem com você sobre a entrega."
+        ajuda="Opcional"
       />
     </FormAcao>
   );
