@@ -74,6 +74,13 @@ export type ClienteResumo = {
   recebido_centavos: number;
   a_receber_centavos: number;
   atrasado_centavos: number;
+  /**
+   * Dinheiro fora do prazo pela régua da parcela, só o saldo já vencido, em dois
+   * grupos exclusivos: quem pagou algo e quem não pagou nada. `atrasado_centavos`
+   * é a régua antiga, do pedido inteiro, e fica até a última tela migrar.
+   */
+  atrasado_vencido_centavos: number;
+  vencido_centavos: number;
 };
 
 export type CampanhaResumo = {
@@ -101,6 +108,8 @@ export type CampanhaResumo = {
   pedidos_sem_pagamento: number;
   pedidos_pagos: number;
   pedidos_liberados: number;
+  atrasado_vencido_centavos: number;
+  vencido_centavos: number;
 };
 
 export type GrupoResumo = {
@@ -120,15 +129,17 @@ export type GrupoResumo = {
   pedidos_sem_pagamento: number;
   pedidos_pagos: number;
   pedidos_liberados: number;
+  atrasado_vencido_centavos: number;
+  vencido_centavos: number;
 };
 
-export type StatusPagamento = "pago" | "parcial" | "atrasado" | "pendente";
-export type StatusProducao =
-  | "aguardando"
-  | "liberado"
-  | "em_producao"
-  | "pronto"
-  | "entregue";
+/**
+ * Uma definição só para os dois status, em `contas.ts`, que é puro e não arrasta
+ * banco para quem só quer o tipo. Reexportados aqui porque metade das telas
+ * importa deste arquivo.
+ */
+export type { StatusPagamento, StatusProducao } from "./contas";
+import type { StatusPagamento, StatusProducao } from "./contas";
 
 export type ItemPainel = {
   id: string;

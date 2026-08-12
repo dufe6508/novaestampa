@@ -32,7 +32,7 @@ export default async function Loja({ params }: { params: Promise<{ codigo: strin
         <p className="text-body-sm text-muted">
           {produtos.length === 0
             ? "Catálogo ainda não publicado."
-            : `${produtos.length} ${produtos.length === 1 ? "produto" : "produtos"} nesta campanha.`}
+            : `${produtos.length} ${produtos.length === 1 ? "Produto" : "Produtos"} nesta campanha.`}
         </p>
       </header>
 
@@ -47,7 +47,7 @@ export default async function Loja({ params }: { params: Promise<{ codigo: strin
         <Alerta tom="atencao">
           {restam === 0
             ? "Hoje é o último dia para pedir."
-            : `Faltam ${restam} ${restam === 1 ? "dia" : "dias"} para o prazo de pedidos, ${dia(
+            : `Faltam ${restam} ${restam === 1 ? "Dia" : "Dias"} para o prazo de pedidos, ${dia(
                 turma.prazo_pedidos,
               )}.`}
         </Alerta>

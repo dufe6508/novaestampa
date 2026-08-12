@@ -414,3 +414,27 @@ peça, porque essa a produção usa mesmo.
 - Ilustração do moletom (não há foto ainda)
 - Qualquer coisa da auth definitiva
 - Gráficos do painel, quando existirem, entram aqui
+
+
+---
+
+## Texto de interface · capitalização
+
+**Toda palavra que abre um texto de interface começa com maiúscula, inclusive depois de
+número.** Vale para rótulo, legenda, `caption`, chip, cabeçalho de tabela e contagem montada
+em template.
+
+| Errado | Certo |
+|---|---|
+| `0 Turmas · 0 alunos · entrada de 50%` | `0 Turmas · 0 Alunos · Entrada de 50%` |
+| `355 pedidos` | `355 Pedidos` |
+| `12 d de atraso` | `12 D de atraso` |
+| `sem data` | `Sem data` |
+
+Decidido em 12/08/2026, olhando a tela pronta. Minúscula depois de número lê como frase
+cortada no meio, e a tela inteira fica com cara de rascunho. Onde a contagem cai no meio de uma
+frase corrida, a frase é reescrita para a contagem abrir a oração, em vez de deixar a
+maiúscula no meio do caminho.
+
+Dado que vem do banco não entra nessa regra: nome de aluno e de produto passam por
+`capitalizarNome`, que é outra decisão.

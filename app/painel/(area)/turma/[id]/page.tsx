@@ -39,9 +39,9 @@ export default async function Turma({
         titulo={`${campanha.label_grupo} ${grupo.nome}`}
         subtitulo={
           <span data-nums>
-            {grupo.pedidos} {grupo.pedidos === 1 ? "pedido" : "pedidos"} ·{" "}
-            {grupo.alunos_com_pedido} {grupo.alunos_com_pedido === 1 ? "aluno" : "alunos"} ·{" "}
-            <Quitados pagos={grupo.pedidos_pagos} total={grupo.pedidos} /> quitados · código{" "}
+            {grupo.pedidos} {grupo.pedidos === 1 ? "Pedido" : "Pedidos"} ·{" "}
+            {grupo.alunos_com_pedido} {grupo.alunos_com_pedido === 1 ? "Aluno" : "Alunos"} ·{" "}
+            <Quitados pagos={grupo.pedidos_pagos} total={grupo.pedidos} /> quitados · Código{" "}
             <span className="font-mono tracking-wider text-ink-2">{grupo.codigo}</span>
           </span>
         }
@@ -52,6 +52,7 @@ export default async function Turma({
         campanha={campanha}
         base={`/painel/turma/${id}`}
         query={query}
+        financeiro
       />
     </>
   );

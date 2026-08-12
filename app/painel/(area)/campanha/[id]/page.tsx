@@ -24,7 +24,6 @@ import {
   Busca,
   Kpi,
   Kpis,
-  Quitados,
   ResumoProdutos,
   Topo,
   Valor,
@@ -37,7 +36,8 @@ import { ProdutoGaveta } from "@/components/produto-gaveta";
 import { ListaProdutos } from "@/components/lista-produtos";
 import { Confirmar } from "@/components/confirmar";
 import { AcaoIcone, ItemMenu, MenuAcoes } from "@/components/menu-acoes";
-import { excluirCampanha, excluirProduto } from "@/app/painel/acoes";
+import { TurmaGaveta } from "@/components/turma-gaveta";
+import { excluirCampanha, excluirGrupo, excluirProduto } from "@/app/painel/acoes";
 import { ExportarCampanhaGaveta } from "@/components/exportar-campanha-gaveta";
 
 /**
@@ -71,6 +71,9 @@ type Query = {
   /** `novo` cria; um id edita. */
   produto?: string;
   excluir_produto?: string;
+  /** `nova` cria; um id edita. */
+  turma?: string;
+  excluir_turma?: string;
 };
 
 /** O botão de ação da tela. Mesma peça na faixa de abas, no vazio e no aviso. */
@@ -79,12 +82,48 @@ const BOTAO = `inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-ink p
   hover:opacity-90 active:scale-[0.98] focus-visible:outline focus-visible:outline-2
   focus-visible:outline-offset-2 focus-visible:outline-brand-deep`;
 
-function NovoProduto({ href, texto = "Novo produto" }: { href: string; texto?: string }) {
+function BotaoNovo({ href, texto }: { href: string; texto: string }) {
   return (
     <Link href={href} scroll={false} className={BOTAO}>
       <Mais className="h-3.5 w-3.5" />
       {texto}
     </Link>
+  );
+}
+
+/**
+ * Aviso de peça que falta para a campanha andar.
+ *
+ * Campanha recém-criada cai na visão geral com tudo zerado e nenhum caminho
+ * óbvio para o passo seguinte. Sem turma ninguém entra, sem produto ninguém
+ * pede, e os dois são exatamente a jornada do §6. Cada aviso some sozinho
+ * quando a peça dele existe.
+ */
+function Falta({
+  icone,
+  texto,
+  href,
+  botao,
+  atraso,
+}: {
+  icone: React.ReactNode;
+  texto: string;
+  href: string;
+  botao: string;
+  atraso: number;
+}) {
+  return (
+    <div
+      className="entra flex flex-wrap items-center justify-between gap-3 rounded-lg
+        border border-dashed border-line-strong bg-surface px-4 py-3.5"
+      style={{ "--atraso": `${atraso}ms` } as React.CSSProperties}
+    >
+      <p className="flex min-w-0 items-center gap-3 text-body-sm text-ink-2">
+        <span className="shrink-0 text-faint">{icone}</span>
+        {texto}
+      </p>
+      <BotaoNovo href={href} texto={botao} />
+    </div>
   );
 }
 
@@ -100,9 +139,15 @@ function NovoProduto({ href, texto = "Novo produto" }: { href: string; texto?: s
  */
 function CartaoTurma({
   grupo,
+  label,
+  editar,
+  excluir,
   atraso,
 }: {
   grupo: GrupoResumo;
+  label: string;
+  editar: string;
+  excluir: string;
   atraso: number;
 }) {
   const vencido = grupo.atrasado_centavos > 0;
@@ -114,20 +159,45 @@ function CartaoTurma({
       style={{ "--atraso": `${atraso}ms` } as React.CSSProperties}
     >
       <div className="flex flex-col gap-5 p-5">
-        <div className="flex items-baseline justify-between gap-3">
-          <h3 className="min-w-0 truncate text-h3">
-            <Link
-              href={`/painel/turma/${grupo.id}`}
-              className="rounded-sm after:absolute after:inset-0 after:content-['']
-                focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2
-                focus-visible:outline-brand-deep"
-            >
-              {grupo.nome}
-            </Link>
-          </h3>
-          <span className="shrink-0 font-mono text-caption tracking-wider text-muted">
-            {grupo.codigo}
-          </span>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-col gap-1">
+            <h3 className="min-w-0 truncate text-h3">
+              <Link
+                href={`/painel/turma/${grupo.id}`}
+                className="rounded-sm after:absolute after:inset-0 after:content-['']
+                  focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2
+                  focus-visible:outline-brand-deep"
+              >
+                {grupo.nome}
+              </Link>
+            </h3>
+            {/* O código é o que a dona dita para a sala inteira e o que vai no
+                link. Numa linha própria, com as letras afastadas, ele para de
+                ser detalhe espremido no canto. */}
+            <span className="font-mono text-caption tracking-[0.18em] text-muted">
+              {grupo.codigo}
+            </span>
+          </div>
+
+          {/* Acima da camada que faz o cartão inteiro virar link, senão o clique
+              no lápis abriria a turma. */}
+          <div className="relative z-10 flex shrink-0 items-center gap-1.5">
+            <AcaoIcone href={editar} rotulo={`Editar ${grupo.nome}`}>
+              <Lapis className="h-4 w-4" />
+            </AcaoIcone>
+            <MenuAcoes rotulo={`Mais ações de ${grupo.nome}`}>
+              <ItemMenu href={editar} icone={<Lapis className="h-4 w-4" />}>
+                Editar {label.toLowerCase()}
+              </ItemMenu>
+              <ItemMenu
+                href={excluir}
+                icone={<Lixeira className="h-4 w-4" />}
+                tom="perigo"
+              >
+                Excluir {label.toLowerCase()}
+              </ItemMenu>
+            </MenuAcoes>
+          </div>
         </div>
 
         <div className="flex flex-col gap-1.5">
@@ -139,7 +209,7 @@ function CartaoTurma({
             {reais(grupo.a_receber_centavos)}
           </span>
           <span className="text-caption text-muted">
-            A receber · {grupo.pedidos} pedidos · {grupo.pedidos_pagos} quitados
+            A receber · {grupo.pedidos} pedidos · {grupo.pedidos_pagos} Quitados
             {" ("}
             {pct(grupo.pedidos_pagos, grupo.pedidos)}%)
           </span>
@@ -184,9 +254,9 @@ type Fila = { situacao: Situacao; pedidos: PedidoPainel[]; total: number };
 /**
  * Barra de uma cor por fila. Proporção do saldo, não do número de pedidos.
  *
- * Um traço só, dividido: os segmentos são encostados e sem canto próprio, e o
- * arredondamento fica nas duas pontas do trilho. Com folga entre eles a peça
- * lia como três barrinhas separadas, que é justamente o que ela veio desfazer.
+ * Um traço só, dividido: os segmentos são encostados e sem canto próprio. Sem
+ * arredondamento porque ela corre de borda a borda do bloco, no lugar do filete
+ * que separava cabeçalho e lista: é separador e proporção na mesma peça.
  */
 function BarraCobranca({ filas, saldo }: { filas: Fila[]; saldo: number }) {
   return (
@@ -195,7 +265,7 @@ function BarraCobranca({ filas, saldo }: { filas: Fila[]; saldo: number }) {
       aria-label={filas
         .map((f) => `${SITUACOES[f.situacao].titulo}, ${pct(f.total, saldo)}%`)
         .join(". ")}
-      className="flex h-1 w-full overflow-hidden rounded-full bg-line"
+      className="flex h-1 w-full overflow-hidden bg-line"
     >
       {saldo > 0 &&
         filas
@@ -229,9 +299,9 @@ function LinhaCobranca({
       <Link
         href={`/painel/campanha/${campanhaId}/cobranca?s=${situacao}`}
         aria-label={`Abrir fila ${titulo}: ${pedidos.length} ${
-          pedidos.length === 1 ? "pedido" : "pedidos"
+          pedidos.length === 1 ? "Pedido" : "Pedidos"
         }, ${reais(total)} em aberto`}
-        className="group flex items-center gap-3 px-4 py-3 transition-colors duration-base
+        className="group flex items-center gap-3 px-4 py-2.5 transition-colors duration-base
           ease-soft hover:bg-surface-2/60 focus-visible:outline focus-visible:outline-2
           focus-visible:outline-offset-[-2px] focus-visible:outline-brand-deep"
       >
@@ -267,7 +337,8 @@ export default async function Campanha({
   searchParams: Promise<Query>;
 }) {
   const { id } = await params;
-  const { aba, q, editar, excluir, exportar, produto, excluir_produto } = await searchParams;
+  const { aba, q, editar, excluir, exportar, produto, excluir_produto, turma, excluir_turma } =
+    await searchParams;
 
   const campanha = await buscarCampanha(id);
   if (!campanha) notFound();
@@ -345,6 +416,15 @@ export default async function Campanha({
   const paraExcluir = excluir_produto
     ? catalogo.find((p) => p.id === excluir_produto)
     : undefined;
+
+  const turmaEmEdicao = turma && turma !== "nova"
+    ? grupos.find((g) => g.id === turma)
+    : undefined;
+  const turmaParaExcluir = excluir_turma
+    ? grupos.find((g) => g.id === excluir_turma)
+    : undefined;
+  const novaTurma = `${comValor("turma", "nova")}`;
+  const label = campanha.label_grupo;
   const prazosDaCampanha = {
     pedidos: campanha.prazo_pedidos,
     alteracoes: campanha.prazo_alteracoes,
@@ -365,7 +445,7 @@ export default async function Campanha({
             {campanha.grupos}{" "}
             {campanha.grupos === 1 ? campanha.label_grupo : campanha.label_grupo_plural} ·{" "}
             {campanha.alunos_com_pedido}{" "}
-            {campanha.alunos_com_pedido === 1 ? "aluno" : "alunos"} · entrada de{" "}
+            {campanha.alunos_com_pedido === 1 ? "Aluno" : "Alunos"} · Entrada de{" "}
             {campanha.percentual_entrada}%
           </span>
         }
@@ -378,6 +458,9 @@ export default async function Campanha({
             <MenuAcoes rotulo={`Mais ações de ${campanha.nome}`}>
               <ItemMenu href={comAcao("editar")} icone={<Lapis className="h-4 w-4" />}>
                 Editar campanha
+              </ItemMenu>
+              <ItemMenu href={novaTurma} icone={<Pacote className="h-4 w-4" />}>
+                Nova {campanha.label_grupo.toLowerCase()}
               </ItemMenu>
               <ItemMenu
                 href={comValor("produto", "novo")}
@@ -409,20 +492,20 @@ export default async function Campanha({
           <Kpi
             rotulo="Vendido"
             valor={reais(campanha.vendido_centavos)}
-            nota={`${campanha.pedidos} ${campanha.pedidos === 1 ? "pedido" : "pedidos"}`}
+            nota={`${campanha.pedidos} ${campanha.pedidos === 1 ? "Pedido" : "Pedidos"}`}
           />
           <Kpi
             rotulo="Recebido"
             valor={reais(campanha.recebido_centavos)}
             nota={`${pct(campanha.recebido_centavos, campanha.vendido_centavos)}% do vendido · ${
               campanha.pedidos_pagos
-            } quitados`}
+            } Quitados`}
           />
           <Kpi
             rotulo="A receber"
             valor={reais(campanha.a_receber_centavos)}
             nota={`${campanha.pedidos - campanha.pedidos_pagos} ${
-              campanha.pedidos - campanha.pedidos_pagos === 1 ? "pedido" : "pedidos"
+              campanha.pedidos - campanha.pedidos_pagos === 1 ? "Pedido" : "Pedidos"
             } em aberto`}
           />
           <Kpi
@@ -432,7 +515,7 @@ export default async function Campanha({
             nota={
               campanha.pedidos_atrasados > 0
                 ? `${campanha.pedidos_atrasados} ${
-                    campanha.pedidos_atrasados === 1 ? "pedido" : "pedidos"
+                    campanha.pedidos_atrasados === 1 ? "Pedido" : "Pedidos"
                   } vencidos`
                 : "nada vencido"
             }
@@ -469,13 +552,16 @@ export default async function Campanha({
         // três pontos do cabeçalho da campanha.
         acao={
           emTurmas ? (
-            <Busca
-              valor={q}
-              placeholder={`Buscar ${campanha.label_grupo.toLowerCase()}`}
-              escondidos={{ aba: "turmas" }}
-            />
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <Busca
+                valor={q}
+                placeholder={`Buscar ${label.toLowerCase()}`}
+                escondidos={{ aba: "turmas" }}
+              />
+              <BotaoNovo href={novaTurma} texto={`Nova ${label.toLowerCase()}`} />
+            </div>
           ) : emProdutos ? (
-            <NovoProduto href={comValor("produto", "novo")} />
+            <BotaoNovo href={comValor("produto", "novo")} texto="Novo produto" />
           ) : undefined
         }
       />
@@ -491,7 +577,7 @@ export default async function Campanha({
             }
             texto={
               grupos.length === 0
-                ? `A ${campanha.label_grupo.toLowerCase()} é o que recebe o código de acesso do aluno.`
+                ? `A ${label.toLowerCase()} é o que recebe o código de acesso do aluno.`
                 : "Confira a escrita ou limpe a busca para ver todas."
             }
             acao={
@@ -502,13 +588,22 @@ export default async function Campanha({
                 >
                   Limpar busca
                 </Link>
-              ) : undefined
+              ) : (
+                <BotaoNovo href={novaTurma} texto={`Criar a primeira ${label.toLowerCase()}`} />
+              )
             }
           />
         ) : (
           <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {turmas.map((g, i) => (
-              <CartaoTurma key={g.id} grupo={g} atraso={i * 30} />
+              <CartaoTurma
+                key={g.id}
+                grupo={g}
+                label={label}
+                editar={comValor("turma", g.id)}
+                excluir={comValor("excluir_turma", g.id)}
+                atraso={i * 30}
+              />
             ))}
           </ul>
         )
@@ -519,7 +614,7 @@ export default async function Campanha({
             titulo="Nenhum produto cadastrado"
             texto="O produto é o que aparece na loja do aluno. Sem ele, quem entra com o código não tem o que pedir."
             acao={
-              <NovoProduto
+              <BotaoNovo
                 href={comValor("produto", "novo")}
                 texto="Cadastrar o primeiro produto"
               />
@@ -531,7 +626,7 @@ export default async function Campanha({
             atraso={120}
             acao={
               <span data-nums className="text-caption text-muted">
-                {catalogo.length} {catalogo.length === 1 ? "produto" : "produtos"}
+                {catalogo.length} {catalogo.length === 1 ? "Produto" : "Produtos"}
               </span>
             }
           >
@@ -557,7 +652,7 @@ export default async function Campanha({
             acao={
               <div className="flex items-center gap-3">
                 <span data-nums className="hidden text-caption text-muted sm:inline">
-                  {pecasNoCorte} {pecasNoCorte === 1 ? "peça" : "peças"}
+                  {pecasNoCorte} {pecasNoCorte === 1 ? "Peça" : "Peças"}
                 </span>
                 <Link href={comAcao("exportar")} scroll={false} className={BOTAO}>
                   Exportar listas
@@ -605,25 +700,26 @@ export default async function Campanha({
         )
       ) : (
         <>
-          {/*
-            Campanha recém-criada cai aqui, na visão geral, com tudo zerado e
-            nenhum caminho óbvio para o passo seguinte. Sem produto a loja não
-            existe, então o aviso mora na primeira tela e some sozinho quando o
-            primeiro produto entra.
-          */}
+          {/* Na ordem da jornada (§6): primeiro a turma, que é a porta do
+              aluno, depois o produto, que é o que ele pede lá dentro. */}
+          {grupos.length === 0 && (
+            <Falta
+              icone={<Pacote className="h-5 w-5" />}
+              texto={`Esta campanha não tem ${label.toLowerCase()} nenhuma. É a ${label.toLowerCase()} que carrega o código de acesso do aluno.`}
+              href={novaTurma}
+              botao={`Criar ${label.toLowerCase()}`}
+              atraso={100}
+            />
+          )}
+
           {catalogo.length === 0 && (
-            <div
-              className="entra flex flex-wrap items-center justify-between gap-3 rounded-lg
-                border border-dashed border-line-strong bg-surface px-4 py-3.5"
-              style={{ "--atraso": "100ms" } as React.CSSProperties}
-            >
-              <p className="flex min-w-0 items-center gap-3 text-body-sm text-ink-2">
-                <Camiseta className="h-5 w-5 shrink-0 text-faint" />
-                A loja desta campanha está vazia. Sem produto, quem entra com o código não
-                tem o que pedir.
-              </p>
-              <NovoProduto href={comValor("produto", "novo")} texto="Cadastrar produto" />
-            </div>
+            <Falta
+              icone={<Camiseta className="h-5 w-5" />}
+              texto="A loja desta campanha está vazia. Sem produto, quem entra com o código não tem o que pedir."
+              href={comValor("produto", "novo")}
+              botao="Cadastrar produto"
+              atraso={120}
+            />
           )}
 
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
@@ -661,57 +757,60 @@ export default async function Campanha({
             {/* Pedidos quitados, não adesão. Adesão exigiria saber quantos alunos
                 a turma tem, e ninguém informou esse número. Isto aqui os próprios
                 pedidos respondem. */}
+            {/* Alunos e peças em frase corrida, embaixo da barra, e não numa
+                grade de duas colunas com rótulo à esquerda e número à direita.
+                Ali eles ficavam a meia tela um do outro, sem relação visível
+                com o número que manda no cartão, e o rótulo isolado pedia uma
+                linha inteira para nomear o que a própria palavra já diz. */}
             <Bloco titulo="Pedidos quitados" atraso={120}>
               <div className="flex flex-col gap-3 px-4 py-4">
                 <div className="flex items-baseline justify-between gap-3">
                   <span className="text-body-sm text-muted">
-                    <Quitados pagos={campanha.pedidos_pagos} total={campanha.pedidos} /> de{" "}
-                    <span data-nums>{campanha.pedidos}</span> pedidos
+                    <span data-nums className="font-semibold text-ink">
+                      {campanha.pedidos_pagos}
+                    </span>{" "}
+                    de <span data-nums>{campanha.pedidos}</span> pedidos
                   </span>
                   <span data-nums className="text-num font-semibold">
                     {pct(campanha.pedidos_pagos, campanha.pedidos)}%
                   </span>
                 </div>
                 <Barra parte={campanha.pedidos_pagos} total={campanha.pedidos} />
-                <dl className="grid grid-cols-2 gap-x-4 border-t border-line pt-3">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <dt className="text-caption text-muted">Alunos</dt>
-                    <dd data-nums className="text-body-sm font-semibold">
-                      {campanha.alunos_com_pedido}
-                    </dd>
-                  </div>
-                  <div className="flex items-baseline justify-between gap-2">
-                    <dt className="text-caption text-muted">Peças</dt>
-                    <dd data-nums className="text-body-sm font-semibold">
-                      {produtos.reduce((n, p) => n + p.pecas, 0)}
-                    </dd>
-                  </div>
-                </dl>
+                <p data-nums className="text-caption text-muted">
+                  {campanha.alunos_com_pedido}{" "}
+                  {campanha.alunos_com_pedido === 1 ? "aluno" : "alunos"} ·{" "}
+                  {produtos.reduce((n, p) => n + p.pecas, 0)} peças
+                </p>
               </div>
             </Bloco>
           </div>
 
-          <Bloco titulo="Acompanhamento de pagamentos" atraso={160}>
-            <div className="flex flex-col gap-3 px-4 py-4">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                <p className="flex items-baseline gap-2">
-                  <span
-                    data-nums
-                    className={`text-num-lg font-semibold tracking-tight
-                      ${saldoEmCobranca === 0 ? "text-faint" : "text-ink"}`}
-                  >
-                    {reais(saldoEmCobranca)}
-                  </span>
-                  <span className="text-body-sm text-muted">em aberto</span>
-                </p>
-                <span data-nums className="text-caption text-muted">
-                  {pedidosEmCobranca} {pedidosEmCobranca === 1 ? "pedido" : "pedidos"}
+          {/* O total sobe para o cabeçalho do bloco e a barra vira o próprio
+              filete que separa cabeçalho de lista. O bloco de 3 linhas que
+              existia entre os dois repetia o que as linhas abaixo já dizem, e
+              custava a altura de uma fila inteira. */}
+          <Bloco
+            titulo="Acompanhamento de pagamentos"
+            atraso={160}
+            acao={
+              <p className="flex shrink-0 items-baseline gap-2">
+                <span
+                  data-nums
+                  className={`text-num font-semibold tabular-nums
+                    ${saldoEmCobranca === 0 ? "text-faint" : "text-ink"}`}
+                >
+                  {reais(saldoEmCobranca)}
                 </span>
-              </div>
-              <BarraCobranca filas={filasCobranca} saldo={saldoEmCobranca} />
-            </div>
+                <span data-nums className="text-caption text-muted">
+                  em aberto · {pedidosEmCobranca}{" "}
+                  {pedidosEmCobranca === 1 ? "Pedido" : "Pedidos"}
+                </span>
+              </p>
+            }
+          >
+            <BarraCobranca filas={filasCobranca} saldo={saldoEmCobranca} />
 
-            <ul className="divide-y divide-line border-t border-line">
+            <ul className="divide-y divide-line">
               {filasCobranca.map((f, i) => (
                 <LinhaCobranca key={f.situacao} fila={f} campanhaId={id} atraso={200 + i * 30} />
               ))}
@@ -738,6 +837,42 @@ export default async function Campanha({
 
       {editar && !excluir && <CampanhaGaveta campanha={campanha} fechar={fechar} />}
 
+      {(turma === "nova" || turmaEmEdicao) && !turmaParaExcluir && (
+        <TurmaGaveta
+          campanhaId={campanha.id}
+          clienteNome={campanha.cliente_nome}
+          label={label}
+          grupo={turmaEmEdicao}
+          fechar={fechar}
+        />
+      )}
+
+      {turmaParaExcluir && (
+        <Confirmar
+          titulo={`Excluir ${label.toLowerCase()}`}
+          subtitulo={turmaParaExcluir.nome}
+          consequencia={
+            turmaParaExcluir.pedidos > 0 ? (
+              <>
+                Esta {label.toLowerCase()} já tem {turmaParaExcluir.pedidos}{" "}
+                {turmaParaExcluir.pedidos === 1 ? "Pedido" : "Pedidos"}. Não pode ser
+                excluída.
+              </>
+            ) : (
+              <>
+                Apaga a {label.toLowerCase()} e libera o código {turmaParaExcluir.codigo} para
+                outra. Não tem como desfazer.
+              </>
+            )
+          }
+          acao={excluirGrupo}
+          botao="Excluir para sempre"
+          pendenteTexto="Excluindo…"
+          ocultos={{ grupo_id: turmaParaExcluir.id, voltar: `${base}?aba=turmas` }}
+          fechar={fechar}
+        />
+      )}
+
       {(produto === "novo" || emEdicao) && !paraExcluir && (
         <ProdutoGaveta
           campanhaId={campanha.id}
@@ -755,7 +890,7 @@ export default async function Campanha({
             paraExcluir.pedidos > 0 ? (
               <>
                 Este produto já tem {paraExcluir.pedidos}{" "}
-                {paraExcluir.pedidos === 1 ? "pedido" : "pedidos"} e não pode ser excluído.
+                {paraExcluir.pedidos === 1 ? "Pedido" : "Pedidos"}. Não pode ser excluído.
                 Oculte da loja em vez disso: os pedidos continuam, e ele some da vitrine.
               </>
             ) : (

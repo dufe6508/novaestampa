@@ -197,11 +197,6 @@ export function FormPagamento({
               {copiado && <Certo className="h-4 w-4 text-success" />}
               {copiado ? "Código copiado" : "Copiar código"}
             </button>
-
-            <p className="text-center text-caption leading-relaxed text-muted">
-              O QR funciona e abre um texto de demonstração. Ele não é um código Pix válido,
-              então ninguém paga nada por engano.
-            </p>
           </div>
         ) : (
           <div className="surge flex flex-col gap-4 rounded-xl border border-line bg-surface p-5">
@@ -233,43 +228,55 @@ export function FormPagamento({
             O aviso aparece ao clicar, não antes: texto de alerta permanente
             vira paisagem e ninguém lê. */}
         {saindo ? (
-          <div className="surge flex flex-col gap-3 rounded-xl border border-warning/30 bg-warning-soft p-4">
+          /*
+            O card fala numa cor só. O botão preto que estava aqui era o preto
+            de ação do resto do sistema caído dentro de uma caixa âmbar, e lia
+            como peça de outra tela colada nesta. Aqui a ação principal usa o
+            próprio âmbar cheio, e a saída ganha borda: sem ela, "Sair mesmo
+            assim" era texto solto, e a escolha parecia ter um lado só.
+
+            O texto encolheu para duas frases. Três parágrafos com negrito no
+            meio de cada um é a forma de ninguém ler nenhum, e a pessoa que
+            está aqui já decidiu sair: ela precisa da consequência em uma
+            linha, não da política inteira.
+          */
+          <div
+            className="surge flex flex-col gap-4 rounded-xl border border-warning/25
+              bg-warning-soft p-4"
+          >
             <div className="flex gap-3">
               <Aviso className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
-              <div className="flex flex-col gap-2 text-caption leading-relaxed text-warning">
-                <p className="text-body-sm font-semibold">
+              <div className="flex min-w-0 flex-col gap-1.5 text-warning">
+                <p className="text-body-sm font-semibold leading-snug">
                   Sem o pagamento, seu uniforme não é produzido.
                 </p>
-                <p>
-                  O pedido fica guardado, mas ele{" "}
-                  <strong className="font-semibold">só é confirmado</strong> e{" "}
-                  <strong className="font-semibold">
-                    só entra na lista de produção da turma
-                  </strong>{" "}
-                  depois que a primeira parcela é paga. Até lá ele não conta para a produção.
-                </p>
-                <p>
-                  Você pode voltar quando quiser: as parcelas ficam disponíveis na{" "}
-                  <strong className="font-semibold">Carteira</strong>, com o valor e o
-                  vencimento de cada uma.
+                <p className="text-caption leading-relaxed">
+                  O pedido fica guardado, mas só entra na produção da turma depois que a
+                  primeira parcela é paga. As parcelas ficam na Carteira, com valor e
+                  vencimento, e você paga quando quiser.
                 </p>
               </div>
             </div>
 
             <div className="flex flex-col gap-2 sm:flex-row-reverse">
-              <Botao
+              <button
                 type="button"
-                className="flex-1"
                 onClick={() => setSaindo(false)}
                 disabled={pendente}
+                className="flex h-11 flex-1 items-center justify-center rounded-lg bg-warning px-4
+                  text-body-sm font-semibold text-white transition-[opacity,transform]
+                  duration-fast ease-soft hover:opacity-90 active:scale-[0.985]
+                  disabled:cursor-not-allowed disabled:opacity-40
+                  motion-reduce:active:scale-100"
               >
                 Voltar e pagar agora
-              </Botao>
+              </button>
               <Link
                 href={voltarPara}
-                className="flex h-11 flex-1 items-center justify-center rounded-lg px-4
-                  text-body-sm font-semibold text-warning
-                  transition-colors duration-fast ease-soft hover:bg-warning/10"
+                className="flex h-11 flex-1 items-center justify-center rounded-lg border
+                  border-warning/40 px-4 text-body-sm font-semibold text-warning
+                  transition-[background-color,border-color] duration-fast ease-soft
+                  hover:border-warning/70 hover:bg-warning/10"
               >
                 Sair mesmo assim
               </Link>
@@ -286,11 +293,6 @@ export function FormPagamento({
             Pagar depois
           </button>
         )}
-
-        <p className="text-center text-caption leading-relaxed text-muted">
-          Pagamento simulado: nenhum valor é cobrado e nenhum dado de cartão sai deste
-          aparelho.
-        </p>
       </div>
     </form>
   );

@@ -23,6 +23,7 @@ import { ExportarGaveta } from "./exportar-gaveta";
 import { Pacote } from "./icones";
 import { Vazio } from "./campos";
 import { SeloPagamento } from "./selo";
+import { FinanceiroDaTurma } from "./financeiro-turma";
 
 /**
  * A lista da turma. Duas abas, e elas não são a mesma lista com um filtro.
@@ -61,9 +62,28 @@ export function montarUrl(base: string, q: Record<string, string | undefined>) {
   return s ? `${base}?${s}` : base;
 }
 
-const TH = "label px-4 py-3 text-center text-muted font-semibold";
-const TD = "px-4 py-3 text-center";
-const TDP = "px-4 py-3";
+/**
+ * Alinhamento por tipo de dado, e não tudo no centro.
+ *
+ * Centralizar a tabela inteira era o que fazia ela parecer apertada mesmo com
+ * espaço sobrando: nome, produto e tamanho começavam em pontos diferentes a
+ * cada linha, então o olho não tinha onde descer, e dinheiro centralizado
+ * desalinha a vírgula, que é justamente o que se compara numa coluna de valor.
+ *
+ * A regra é a de CLAUDE.md §5.1.2, que já valia para a tabela de turmas e não
+ * tinha sido aplicada aqui: texto à esquerda, contagem no centro, dinheiro à
+ * direita. Cabeçalho segue o alinhamento da coluna dele, senão o rótulo aponta
+ * para um lado e o dado para o outro.
+ */
+const TH_BASE = "label whitespace-nowrap px-3 py-2.5 text-muted font-semibold";
+const TH_E = `${TH_BASE} text-left`;
+const TH_C = `${TH_BASE} text-center`;
+const TH_D = `${TH_BASE} text-right`;
+
+const TD_BASE = "px-3 py-2.5 align-middle";
+const TD_E = `${TD_BASE} text-left`;
+const TD_C = `${TD_BASE} text-center`;
+const TD_D = `${TD_BASE} text-right`;
 
 /**
  * O status do pedido é o chip do resto do painel (`SeloPagamento`), não mais um
@@ -89,15 +109,24 @@ export async function PlanilhaTurma({
   campanha,
   base,
   query,
+  financeiro,
 }: {
   grupo: GrupoResumo;
   campanha: CampanhaResumo;
   /** Endereço desta lista. Todo link é montado em cima dele. */
   base: string;
   query: QueryPlanilha;
+  /**
+   * Liga a aba Financeiro. Só o painel da empresa passa isto: a gestão do
+   * representante existe para cobrar pessoa, não para ler a posição da turma, e
+   * o papel dele no banco ainda não existe (CLAUDE.md §3.3). Quando existir, a
+   * decisão volta a ser de permissão, não de prop.
+   */
+  financeiro?: boolean;
 }) {
   const { aba, p: produtoQuery, f, q, t, pedido: pedidoId, exportar } = query;
   const naProducao = aba === "producao";
+  const noFinanceiro = financeiro === true && aba === "financeiro";
   const filtro: Filtro = ehFiltro(f) ? f : "todos";
 
   const todos = await listarPedidosDaTurma(grupo.id);
@@ -163,7 +192,7 @@ export async function PlanilhaTurma({
   const abas = [
     {
       texto: "Pedidos",
-      ativo: !naProducao,
+      ativo: !naProducao && !noFinanceiro,
       href: montarUrl(base, { q }),
       contagem: todos.length,
     },
@@ -173,6 +202,15 @@ export async function PlanilhaTurma({
       href: montarUrl(base, { aba: "producao", q }),
       contagem: todasAsPecas.length,
     },
+    ...(financeiro
+      ? [
+          {
+            texto: "Financeiro",
+            ativo: noFinanceiro,
+            href: montarUrl(base, { aba: "financeiro" }),
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -183,7 +221,7 @@ export async function PlanilhaTurma({
         acao={<Busca valor={q} placeholder="Buscar Aluno" escondidos={{ aba }} />}
       />
 
-      {produtos.length > 1 && (
+      {produtos.length > 1 && !noFinanceiro && (
         <div
           className="entra -mt-1 flex flex-wrap items-center gap-2"
           style={{ "--atraso": "80ms" } as React.CSSProperties}
@@ -215,7 +253,7 @@ export async function PlanilhaTurma({
         </div>
       )}
 
-      {!naProducao && (
+      {!naProducao && !noFinanceiro && (
         <div
           className="entra -mt-1"
           style={{ "--atraso": "100ms" } as React.CSSProperties}
@@ -239,7 +277,7 @@ export async function PlanilhaTurma({
         dia a dia é sobre uma pessoa, não sobre o total; quem precisa do total
         precisa dele inteiro, e aí abre.
       */}
-      {!naProducao && lista.length > 0 && (
+      {!naProducao && !noFinanceiro && lista.length > 0 && (
         <Retratil
           titulo="Por Produto"
           resumo={`${lista.length} ${lista.length === 1 ? "Pedido" : "Pedidos"} Nesta Lista`}
@@ -249,7 +287,9 @@ export async function PlanilhaTurma({
         </Retratil>
       )}
 
-      {naProducao ? (
+      {noFinanceiro ? (
+        <FinanceiroDaTurma grupoId={grupo.id} url={url} />
+      ) : naProducao ? (
         <Producao
           pecas={pecas}
           produto={produto}
@@ -285,25 +325,35 @@ export async function PlanilhaTurma({
             style={{ "--atraso": "120ms" } as React.CSSProperties}
           >
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[780px] table-fixed border-collapse text-body-sm">
+              {/*
+                O selo saiu de baixo do nome e foi para o lado dele. Empilhado,
+                ele fazia toda linha ter duas alturas e formava uma coluna de
+                cor no meio do nome, que é onde o olho desce procurando pessoa.
+                Ao lado, ele qualifica o nome, que é o que ele faz.
+
+                As larguras deixaram de ser sete fatias quase iguais: quem
+                carrega texto (aluno, produto, tamanho) ganhou espaço, e as de
+                dinheiro só precisam caber "R$ 159,90".
+              */}
+              <table className="w-full min-w-[880px] table-fixed border-collapse text-body-sm">
                 <colgroup>
-                  <col className="w-[24%]" />
-                  <col className="w-[24%]" />
-                  <col className="w-[10%]" />
-                  <col className="w-[10%]" />
-                  <col className="w-[10%]" />
+                  <col className="w-[27%]" />
+                  <col className="w-[18%]" />
+                  <col className="w-[13%]" />
+                  <col className="w-[11%]" />
+                  <col className="w-[11%]" />
                   <col className="w-[12%]" />
-                  <col className="w-[10%]" />
+                  <col className="w-[8%]" />
                 </colgroup>
                 <thead>
                   <tr className="border-b border-line bg-surface-2">
-                    <th className={TH}>Aluno</th>
-                    <th className={TH}>Produto</th>
-                    <th className={TH}>Tam.</th>
-                    <th className={TH}>Valor</th>
-                    <th className={TH}>Pago</th>
-                    <th className={TH}>Falta Pagar</th>
-                    <th className={TH}>Feito</th>
+                    <th className={TH_E}>Aluno</th>
+                    <th className={TH_E}>Produto</th>
+                    <th className={TH_E}>Tam.</th>
+                    <th className={TH_D}>Valor</th>
+                    <th className={TH_D}>Pago</th>
+                    <th className={TH_D}>Falta pagar</th>
+                    <th className={TH_D}>Feito</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -316,12 +366,12 @@ export async function PlanilhaTurma({
                           ease-soft last:border-0 hover:bg-surface-2
                           ${detalhe?.id === p.id ? "bg-surface-2" : ""}`}
                       >
-                        <td className={TD}>
-                          <div className="flex min-w-0 flex-col items-center gap-1">
+                        <td className={TD_E}>
+                          <div className="flex min-w-0 items-center gap-2">
                             <Link
                               href={url({ pedido: p.id })}
                               scroll={false}
-                              className={`max-w-full truncate font-medium underline-offset-2 hover:underline
+                              className={`min-w-0 truncate font-medium underline-offset-2 hover:underline
                                 ${repetido ? "text-muted" : "text-ink"}`}
                             >
                               {capitalizarNome(p.aluno_nome)}
@@ -329,23 +379,28 @@ export async function PlanilhaTurma({
                             <SeloPagamento status={p.status_pagamento} />
                           </div>
                         </td>
-                        <td className={`${TD} truncate text-ink-2`} title={capitalizarNome(p.produto_nome_snapshot)}>
+                        <td
+                          className={`${TD_E} truncate text-ink-2`}
+                          title={capitalizarNome(p.produto_nome_snapshot)}
+                        >
                           {capitalizarNome(p.produto_nome_snapshot)}
                         </td>
-                        <td className={`${TD} whitespace-nowrap text-ink-2`}>{tamanhos(p)}</td>
-                        <td className={TD}>
+                        <td className={`${TD_E} truncate text-ink-2`} title={tamanhos(p)}>
+                          {tamanhos(p)}
+                        </td>
+                        <td className={TD_D}>
                           <Valor centavos={p.valor_centavos} />
                         </td>
-                        <td className={TD}>
+                        <td className={TD_D}>
                           <Valor centavos={p.pago_centavos} />
                         </td>
-                        <td className={TD}>
+                        <td className={TD_D}>
                           <Valor
                             centavos={p.saldo_centavos}
                             tom={p.status_pagamento === "atrasado" ? "alerta" : "forte"}
                           />
                         </td>
-                        <td data-nums className={`${TD} text-caption text-muted`}>
+                        <td data-nums className={`${TD_D} text-caption text-muted`}>
                           {data(p.criado_em)}
                         </td>
                       </tr>
@@ -354,16 +409,16 @@ export async function PlanilhaTurma({
                 </tbody>
                 <tfoot>
                   <tr className="border-t border-line-strong bg-surface-2">
-                    <td colSpan={3} className={`${TD} text-caption font-semibold text-ink-2`}>
+                    <td colSpan={3} className={`${TD_E} text-caption font-semibold text-ink-2`}>
                       {lista.length} {lista.length === 1 ? "Pedido" : "Pedidos"}
                     </td>
-                    <td className={TD}>
+                    <td className={TD_D}>
                       <Valor centavos={total.vendido} tom="forte" />
                     </td>
-                    <td className={TD}>
+                    <td className={TD_D}>
                       <Valor centavos={total.recebido} tom="forte" />
                     </td>
-                    <td className={TD}>
+                    <td className={TD_D}>
                       <Valor
                         centavos={total.aReceber}
                         tom={total.aReceber > 0 ? "alerta" : "forte"}
@@ -579,27 +634,27 @@ function Producao({
       )}
 
       {/*
-        Cinco colunas em largura fixa, sem rolagem lateral em nenhuma tela. Tam.
-        e Qtd deixaram de ser as duas colunas espremidas da direita: cada uma
-        ganhou largura própria e o número foi para o centro dela, que é onde o
-        olho procura uma contagem de uma ou duas casas. Nome longo trunca com
-        reticências em vez de quebrar a linha em duas.
+        Cinco colunas em largura fixa, sem rolagem lateral em nenhuma tela.
+        Aluno e Na estampa são nomes, e nome centralizado numa lista de duzentas
+        linhas não tem margem por onde descer: os dois passaram para a esquerda,
+        que é onde a coluna de nomes se lê. Tam. e Qtd continuam no centro,
+        porque são contagens curtas e é ali que o olho procura o número.
       */}
       <table className="w-full table-fixed border-collapse text-body-sm">
         <colgroup>
           <col className="w-[7%]" />
-          <col className="w-[33%]" />
-          <col className="w-[31%]" />
-          <col className="w-[18%]" />
+          <col className="w-[34%]" />
+          <col className="w-[32%]" />
+          <col className="w-[16%]" />
           <col className="w-[11%]" />
         </colgroup>
         <thead>
           <tr className="border-b border-line bg-surface-2">
-            <th className={TH}>#</th>
-            <th className={TH}>Aluno</th>
-            <th className={TH}>Na estampa</th>
-            <th className={TH}>Tam.</th>
-            <th className={TH}>Qtd</th>
+            <th className={TH_C}>#</th>
+            <th className={TH_E}>Aluno</th>
+            <th className={TH_E}>Na estampa</th>
+            <th className={TH_C}>Tam.</th>
+            <th className={TH_C}>Qtd</th>
           </tr>
         </thead>
         <tbody>
@@ -611,24 +666,27 @@ function Producao({
                 className="border-b border-line transition-colors duration-fast ease-soft
                   hover:bg-surface-2"
               >
-                <td data-nums className={`${TDP} text-center text-caption text-faint`}>
+                <td data-nums className={`${TD_C} text-caption text-faint`}>
                   {i + 1}
                 </td>
                 <td
                   title={p.aluno_nome}
-                  className={`${TDP} truncate text-center ${
+                  className={`${TD_E} truncate ${
                     repetido ? "text-muted" : "font-medium text-ink"
                   }`}
                 >
                   {capitalizarNome(p.aluno_nome)}
                 </td>
-                <td title={capitalizarNome(p.nome_estampa)} className={`${TDP} truncate text-center font-medium text-ink`}>
+                <td
+                  title={capitalizarNome(p.nome_estampa)}
+                  className={`${TD_E} truncate font-medium text-ink`}
+                >
                   {capitalizarNome(p.nome_estampa)}
                 </td>
-                <td className={`${TDP} whitespace-nowrap text-center text-ink-2`}>
+                <td className={`${TD_C} whitespace-nowrap text-ink-2`}>
                   {tamanhoLegivel(p.tamanho)}
                 </td>
-                <td data-nums className={`${TDP} text-center text-ink-2`}>
+                <td data-nums className={`${TD_C} text-ink-2`}>
                   {p.quantidade}
                 </td>
               </tr>
@@ -637,14 +695,12 @@ function Producao({
         </tbody>
         <tfoot>
           <tr className="bg-surface-2">
-            <td colSpan={3} className={`${TDP} text-caption font-semibold text-ink-2`}>
+            <td colSpan={3} className={`${TD_E} text-caption font-semibold text-ink-2`}>
               {pecas.length} {pecas.length === 1 ? "Linha" : "Linhas"}
               {tamanho && ` · Tamanho ${tamanhoLegivel(tamanho)}`}
             </td>
-            <td className={`${TDP} text-center text-caption font-semibold text-ink-2`}>
-              Peças
-            </td>
-            <td data-nums className={`${TDP} text-center font-semibold text-ink`}>
+            <td className={`${TD_C} text-caption font-semibold text-ink-2`}>Peças</td>
+            <td data-nums className={`${TD_C} font-semibold text-ink`}>
               {total}
             </td>
           </tr>

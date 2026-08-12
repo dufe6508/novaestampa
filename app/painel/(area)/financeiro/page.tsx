@@ -1,29 +1,493 @@
-import { Grafico } from "@/components/icones";
-import { Topo } from "@/components/painel";
+import Link from "next/link";
+import { diasEntre, hojeNoFuso, somarDias } from "@/lib/data";
+import { reais } from "@/lib/formato";
+import {
+  listarClientes,
+  listarGrupos,
+  listarTodasCampanhas,
+  pct,
+  type CampanhaResumo,
+} from "@/lib/painel";
+import {
+  COBRANCA,
+  PERIODO_PADRAO,
+  aVencer,
+  ehPeriodo,
+  ehTudo,
+  entrouDireto,
+  filas,
+  janela,
+  listarContasReceber,
+  listarMovimento,
+  listarRecebimentos,
+  listarUltimasEntradas,
+  posicao,
+  porFaixa,
+  ranking,
+  serie,
+  somarMovimento,
+  variacao,
+  type ContaReceber,
+  type MovimentoDia,
+  type Periodo,
+} from "@/lib/financeiro";
+import { Barra, Bloco, Kpi, Kpis, Retratil, Topo } from "@/components/painel";
+import { Curvas, Delta, Entradas, Fio, Modos, Ranking } from "@/components/financeiro";
+import { BotaoFiltros, FiltroGaveta } from "@/components/filtro-gaveta";
+import { Seta } from "@/components/icones";
 
 /**
- * Relatório financeiro. O destino existe, mas o desenho fica para a conversa
- * dedicada a ele. Número provisório aqui seria confundido com dado real.
+ * Financeiro · visão geral da empresa.
+ *
+ * Duas camadas, e a separação é a estrutura do módulo: **aqui é a empresa
+ * inteira**, e o trabalho de uma escola acontece dentro dela, em
+ * `/painel/financeiro/campanha/[id]`, que é onde ficam as sub-abas. Empilhar tudo
+ * numa página só fazia a tela crescer sem fim e obrigava a rolar para achar a
+ * escola.
+ *
+ * Duas réguas que valem na tela toda:
+ *
+ * · **Posição não tem período.** Vendido, recebido e a receber são a foto de hoje;
+ *   o período manda no movimento e no gráfico. Parcela em aberto não tem data de
+ *   recebimento, então "vencido nos últimos 30 dias" não significa nada.
+ * · **Filtro fica atrás de um botão**, não em fileira de chips. Chip lê como aba e
+ *   competia com a navegação de verdade.
  */
-export default function Financeiro() {
+
+type Query = {
+  periodo?: string;
+  cliente?: string;
+  campanha?: string;
+  turma?: string;
+  filtros?: string;
+};
+
+type Alerta = { texto: string; valor: string; href: string };
+
+function alertas({
+  contas,
+  hoje,
+  escopo,
+  campanhas,
+}: {
+  contas: ContaReceber[];
+  hoje: string;
+  escopo: string;
+  campanhas: CampanhaResumo[];
+}): Alerta[] {
+  const lista: Alerta[] = [];
+  const [atrasado, semPagamento] = filas(contas);
+  const faixas = porFaixa(contas);
+
+  const vencendoHoje = contas.filter((c) => c.saldo_centavos > 0 && c.vencimento === hoje);
+  if (vencendoHoje.length > 0) {
+    lista.push({
+      texto: `${vencendoHoje.length} ${vencendoHoje.length === 1 ? "Parcela vence" : "Parcelas vencem"} hoje`,
+      valor: reais(vencendoHoje.reduce((t, c) => t + c.saldo_centavos, 0)),
+      href: `/painel/financeiro/receber?modo=tudo${escopo}`,
+    });
+  }
+
+  const antigo = faixas
+    .filter((f) => f.valor === "31a60" || f.valor === "mais60")
+    .reduce((t, f) => t + f.valor_centavos, 0);
+  if (antigo > 0) {
+    lista.push({
+      texto: "Fora do prazo há mais de 30 dias",
+      valor: reais(antigo),
+      href: `/painel/financeiro/receber?modo=atrasado&faixa=mais60${escopo}`,
+    });
+  }
+
+  if (atrasado.naOficina > 0) {
+    lista.push({
+      texto: "Peça na oficina com parcela vencida",
+      valor: reais(atrasado.naOficina),
+      href: `/painel/financeiro/receber?modo=atrasado&oficina=1${escopo}`,
+    });
+  }
+
+  // Arrecadação contra o prazo: é a única que ainda dá tempo de corrigir.
+  for (const c of campanhas) {
+    if (!c.entrega_prevista || !c.vendido_centavos) continue;
+    const dias = diasEntre(hoje, c.entrega_prevista);
+    const arrecadado = pct(c.recebido_centavos, c.vendido_centavos);
+    if (dias < 0 || dias > 30 || arrecadado >= 80) continue;
+    lista.push({
+      texto: `${c.nome} · ${arrecadado}% Arrecadado · Entrega em ${dias} ${dias === 1 ? "Dia" : "Dias"}`,
+      valor: reais(c.vendido_centavos - c.recebido_centavos),
+      href: `/painel/financeiro/campanha/${c.id}`,
+    });
+  }
+
+  if (semPagamento.pedidos > 0) {
+    lista.push({
+      texto: `${semPagamento.pedidos} ${semPagamento.pedidos === 1 ? "Pedido" : "Pedidos"} sem nenhum pagamento e fora do prazo`,
+      valor: reais(semPagamento.valor),
+      href: `/painel/financeiro/receber?modo=sem_pagamento${escopo}`,
+    });
+  }
+
+  return lista.slice(0, 5);
+}
+
+/** Cartão de posição: um número manda, o resto desce para a legenda. */
+function Posicao({
+  rotulo,
+  valor,
+  nota,
+  fio,
+}: {
+  rotulo: string;
+  valor: string;
+  nota: React.ReactNode;
+  fio?: number[];
+}) {
+  return (
+    <div className="entra flex flex-col gap-1 rounded-lg border border-line bg-surface px-4 py-3.5">
+      <p className="label text-muted">{rotulo}</p>
+      <p data-nums className="text-num-lg font-semibold">
+        {valor}
+      </p>
+      <p className="text-caption leading-snug text-muted">{nota}</p>
+      {fio && fio.length > 1 && (
+        <div className="mt-1 text-faint">
+          <Fio valores={fio} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Série acumulada dos últimos 30 dias, para o fio do cartão. */
+function fioDe(
+  movimento: MovimentoDia[],
+  campo: "vendido_centavos" | "recebido_centavos",
+  hoje: string,
+) {
+  const de = somarDias(hoje, -29);
+  const porDia = new Map<string, number>();
+  for (let i = 0; i < 30; i++) porDia.set(somarDias(de, i), 0);
+  for (const m of movimento) {
+    if (m.dia < de || m.dia > hoje) continue;
+    porDia.set(m.dia, (porDia.get(m.dia) ?? 0) + m[campo]);
+  }
+
+  let total = 0;
+  return [...porDia.values()].map((v) => (total += v));
+}
+
+export default async function Financeiro({ searchParams }: { searchParams: Promise<Query> }) {
+  const { periodo: p, cliente, campanha, turma, filtros } = await searchParams;
+  const periodo: Periodo = ehPeriodo(p) ? p : PERIODO_PADRAO;
+
+  const [contas, movimento, entradas, recebimentos, campanhas, clientes] = await Promise.all([
+    listarContasReceber(cliente, campanha, turma),
+    listarMovimento(cliente, campanha, turma),
+    listarUltimasEntradas(cliente, campanha, turma),
+    listarRecebimentos(cliente, campanha, turma),
+    listarTodasCampanhas(),
+    listarClientes(),
+  ]);
+
+  const turmas = campanha ? await listarGrupos(campanha) : [];
+
+  const hoje = hojeNoFuso();
+  const j = janela(periodo, hoje);
+
+  const carteira = posicao(movimento, contas);
+  const [atrasado, semPagamento] = filas(contas);
+  const direto = entrouDireto(recebimentos);
+  const proximos7 = aVencer(contas, 7, hoje);
+  const foraDoPrazoTotal = atrasado.valor + semPagamento.valor;
+
+  const noPeriodo = somarMovimento(movimento, j.de, j.ate);
+  const noAnterior = somarMovimento(movimento, j.anterior.de, j.anterior.ate);
+  const deHoje = somarMovimento(movimento, hoje, hoje);
+  const deOntem = somarMovimento(movimento, somarDias(hoje, -1), somarDias(hoje, -1));
+
+  // O escopo viaja nos links de drill-down, para a lista abrir no mesmo corte.
+  const escopo = [
+    cliente && `&cliente=${cliente}`,
+    campanha && `&campanha=${campanha}`,
+    turma && `&turma=${turma}`,
+  ]
+    .filter(Boolean)
+    .join("");
+
+  const base = "/painel/financeiro";
+  const url = (extra: Partial<Query>) => {
+    const q = new URLSearchParams();
+    const campos = { periodo, cliente, campanha, turma, filtros, ...extra };
+    for (const [k, v] of Object.entries(campos)) if (v) q.set(k, String(v));
+    const s = q.toString();
+    return s ? `${base}?${s}` : base;
+  };
+
+  const ativos = [
+    cliente,
+    campanha,
+    turma,
+    periodo !== PERIODO_PADRAO ? periodo : undefined,
+  ].filter(Boolean).length;
+
+  const daEscola = cliente ? campanhas.filter((c) => c.cliente_id === cliente) : [];
+
+  const linhasAtencao = alertas({
+    contas,
+    hoje,
+    escopo,
+    campanhas: campanhas
+      .filter((c) => (cliente ? c.cliente_id === cliente : true))
+      .filter((c) => (campanha ? c.id === campanha : true)),
+  });
+
+  // Concentração: um nível abaixo do escopo. Na empresa inteira, escolas; dentro
+  // de uma escola ou campanha, turmas. Ranking de um item só não é ranking.
+  const nivel = cliente || campanha || turma ? "turma" : "cliente";
+  const concentracao = ranking(contas, nivel);
+
+  const pontos = serie(movimento, j);
+  const comparavel = !ehTudo(j);
+
+  // As escolas da lista, cada uma com a campanha que está rolando: aberta na
+  // frente, e entre duas abertas ganha a de entrega mais próxima.
+  const escolas = clientes
+    .filter((c) => c.pedidos > 0)
+    .map((c) => ({
+      cliente: c,
+      campanha: campanhas
+        .filter((x) => x.cliente_id === c.id)
+        .sort(
+          (a, b) =>
+            Number(b.status === "aberta") - Number(a.status === "aberta") ||
+            (a.entrega_prevista ?? "9999").localeCompare(b.entrega_prevista ?? "9999"),
+        )[0],
+    }))
+    .filter((x) => x.campanha)
+    .sort((a, b) => b.cliente.a_receber_centavos - a.cliente.a_receber_centavos);
+
   return (
     <>
       <Topo
         titulo="Financeiro"
-        subtitulo="Relatório completo por cliente, campanha e turma."
+        subtitulo="A empresa inteira. Entre numa escola para trabalhar a campanha dela."
+        acoes={
+          <div className="flex items-center gap-2">
+            <BotaoFiltros href={url({ filtros: "1" })} ativos={ativos} />
+            <Link
+              href={`/painel/financeiro/receber${escopo ? `?modo=tudo${escopo}` : ""}`}
+              className="inline-flex h-10 items-center rounded-md bg-ink px-3.5 text-body-sm
+                font-medium text-white transition-opacity duration-fast ease-soft
+                hover:opacity-90 active:scale-[0.98] focus-visible:outline focus-visible:outline-2
+                focus-visible:outline-offset-2 focus-visible:outline-brand-deep"
+            >
+              Contas a receber
+            </Link>
+          </div>
+        }
       />
 
-      <section
-        className="entra flex min-h-64 flex-col items-center justify-center gap-3 rounded-lg
-          border border-dashed border-line-strong bg-surface px-6 py-12 text-center"
-      >
-        <Grafico className="h-8 w-8 text-faint" />
-        <h2 className="text-h3">Relatório reservado para a próxima etapa</h2>
-        <p className="max-w-lg text-body-sm text-muted">
-          Esta tela será planejada com calma antes de receber filtros, indicadores ou
-          comparações. Assim, nenhum formato provisório vira decisão por acidente.
+      <section className="grid gap-3 sm:grid-cols-3" aria-label="Posição da carteira, hoje">
+        <Posicao
+          rotulo="Vendido"
+          valor={reais(carteira.vendido)}
+          nota={`${carteira.pedidos} ${carteira.pedidos === 1 ? "Pedido" : "Pedidos"} desde o início`}
+          fio={fioDe(movimento, "vendido_centavos", hoje)}
+        />
+        <Posicao
+          rotulo="Recebido"
+          valor={reais(carteira.recebido)}
+          nota={`${carteira.arrecadado}% Do vendido`}
+          fio={fioDe(movimento, "recebido_centavos", hoje)}
+        />
+        <Posicao
+          rotulo="A receber"
+          valor={reais(carteira.aReceber)}
+          nota={
+            <>
+              {reais(foraDoPrazoTotal)} Fora do prazo · {reais(proximos7.valor_centavos)} Vence em
+              7 dias
+            </>
+          }
+        />
+      </section>
+
+      <section className="flex flex-col gap-2" aria-label="Precisa de cobrança">
+        <h2 className="label text-muted">Precisa de cobrança</h2>
+        <Modos
+          opcoes={[atrasado, semPagamento].map((f) => ({
+            texto: COBRANCA[f.grupo].titulo,
+            href: `/painel/financeiro/receber?modo=${f.grupo}${escopo}`,
+            ativo: false,
+            centavos: f.valor,
+            pedidos: f.pedidos,
+          }))}
+        />
+        <p className="text-caption text-muted">
+          {atrasado.naOficina > 0 ? (
+            <>
+              {reais(atrasado.naOficina)} Disso é peça que já está na oficina.{" "}
+              {atrasado.maiorAtraso > 0 && `Atraso mais antigo: ${atrasado.maiorAtraso} dias.`}
+            </>
+          ) : (
+            "Nenhuma peça na oficina com pagamento vencido."
+          )}
         </p>
       </section>
+
+      <Kpis>
+        <Kpi rotulo="Recebido hoje" valor={reais(deHoje.recebido)} />
+        <div className="flex flex-col gap-1 px-4 py-3.5">
+          <p className="label text-muted">Recebido no período</p>
+          <p data-nums className="text-num font-semibold">
+            {reais(noPeriodo.recebido)}
+          </p>
+          {comparavel ? (
+            <Delta
+              valor={variacao(noPeriodo.recebido, noAnterior.recebido)}
+              contra="Vs período anterior"
+            />
+          ) : (
+            <p className="text-caption text-muted">Desde o início</p>
+          )}
+        </div>
+        <div className="flex flex-col gap-1 px-4 py-3.5">
+          <p className="label text-muted">Ontem</p>
+          <p data-nums className="text-num font-semibold">
+            {reais(deOntem.recebido)}
+          </p>
+          <Delta valor={variacao(deHoje.recebido, deOntem.recebido)} contra="Hoje contra ontem" />
+        </div>
+        <Kpi
+          rotulo="Vendido no período"
+          valor={reais(noPeriodo.vendido)}
+          nota={`${noPeriodo.pedidos} ${noPeriodo.pedidos === 1 ? "Pedido novo" : "Pedidos novos"}`}
+        />
+      </Kpis>
+
+      <Bloco titulo="Precisa de atenção">
+        {linhasAtencao.length > 0 ? (
+          <ul className="divide-y divide-line">
+            {linhasAtencao.map((a) => (
+              <li key={a.texto}>
+                <Link
+                  href={a.href}
+                  className="flex items-center justify-between gap-3 px-4 py-2.5
+                    transition-colors duration-fast ease-soft hover:bg-surface-2"
+                >
+                  <span className="min-w-0 text-body-sm">{a.texto}</span>
+                  <span className="flex shrink-0 items-center gap-2">
+                    <span data-nums className="text-body-sm font-semibold text-danger">
+                      {a.valor}
+                    </span>
+                    <Seta className="h-3.5 w-3.5 text-muted" />
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="px-4 py-8 text-center text-body-sm text-muted">
+            Nada exigindo ação hoje. Nenhuma parcela vencendo, nada fora do prazo e nenhuma
+            campanha atrasada na arrecadação.
+          </p>
+        )}
+      </Bloco>
+
+      {/* `items-start` mata a faixa branca: sem isso o gráfico esticava até a
+          altura do bloco vizinho e sobrava vazio embaixo da curva. */}
+      <div className="grid items-start gap-3 lg:grid-cols-[1.6fr_1fr]">
+        <Bloco titulo="Vendido x Recebido">
+          <Curvas pontos={pontos} />
+        </Bloco>
+        <Bloco
+          titulo="Últimas entradas"
+          acao={
+            <span data-nums className="text-caption text-muted">
+              {direto.pct}% Direto
+            </span>
+          }
+        >
+          <Entradas linhas={entradas} />
+        </Bloco>
+      </div>
+
+      <Retratil
+        titulo={nivel === "cliente" ? "Onde está concentrado" : "Turmas com mais atraso"}
+        resumo={
+          foraDoPrazoTotal > 0 ? `${reais(foraDoPrazoTotal)} Fora do prazo` : "Nada fora do prazo"
+        }
+      >
+        <Ranking
+          linhas={concentracao}
+          href={(l) =>
+            nivel === "cliente"
+              ? url({ cliente: l.id })
+              : `/painel/financeiro/receber?modo=tudo&turma=${l.id}`
+          }
+          vazio="Nada fora do prazo neste escopo."
+        />
+      </Retratil>
+
+      {/* A porta para o trabalho de verdade: cada escola leva à campanha dela, e é
+          lá que ficam as sub-abas de A receber, Entradas e Turmas. */}
+      <Bloco titulo="Escolas">
+        {escolas.length === 0 ? (
+          <p className="px-4 py-8 text-center text-body-sm text-muted">
+            Nenhuma escola com pedido ainda.
+          </p>
+        ) : (
+          <ul className="divide-y divide-line">
+            {escolas.map(({ cliente: c, campanha: camp }) => (
+              <li key={c.id}>
+                <Link
+                  href={`/painel/financeiro/campanha/${camp!.id}`}
+                  className="flex flex-col gap-2 px-4 py-3 transition-colors duration-fast
+                    ease-soft hover:bg-surface-2"
+                >
+                  <span className="flex items-baseline justify-between gap-3">
+                    <span className="min-w-0">
+                      <span className="block truncate text-body-sm font-semibold">{c.nome}</span>
+                      <span className="text-caption text-muted">{camp!.nome}</span>
+                    </span>
+                    <span className="shrink-0 text-right">
+                      <span data-nums className="block text-body-sm font-semibold tabular-nums">
+                        {reais(c.a_receber_centavos)}
+                      </span>
+                      <span className="text-caption text-muted">A receber</span>
+                    </span>
+                  </span>
+                  <Barra parte={c.recebido_centavos} total={c.vendido_centavos || 1} />
+                  <span data-nums className="text-caption text-muted">
+                    {pct(c.recebido_centavos, c.vendido_centavos)}% Arrecadado de{" "}
+                    {reais(c.vendido_centavos)} · {c.pedidos}{" "}
+                    {c.pedidos === 1 ? "Pedido" : "Pedidos"}
+                    {c.vencido_centavos + c.atrasado_vencido_centavos > 0 && (
+                      <span className="text-danger">
+                        {" · "}
+                        {reais(c.vencido_centavos + c.atrasado_vencido_centavos)} Fora do prazo
+                      </span>
+                    )}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Bloco>
+
+      {filtros === "1" && (
+        <FiltroGaveta
+          fechar={url({ filtros: undefined })}
+          periodo={periodo}
+          clientes={clientes.map((c) => ({ id: c.id, nome: c.nome }))}
+          campanhas={daEscola.map((c) => ({ id: c.id, nome: c.nome }))}
+          turmas={turmas.map((g) => ({ id: g.id, nome: g.nome }))}
+          escolhido={{ cliente, campanha, turma }}
+          url={(extra) => url({ ...extra, filtros: "1" })}
+        />
+      )}
     </>
   );
 }

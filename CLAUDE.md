@@ -515,7 +515,7 @@ view pública. Aguardando autorização para mexer no schema.
 | E5 | Pedido | detalhe, registrar pagamento, liberar produção | pronta, painel lateral sobre a E4 |
 | E6 | Novo pedido manual | quem pagou em dinheiro | **falta** |
 | E7 | Produtos da campanha | cadastro com foto | pronta, aba da E3 |
-| E8 | Grupos da campanha | código de acesso | **falta** |
+| E8 | Grupos da campanha | código de acesso | pronta, gaveta da E3 |
 | E9 | Exportar | xlsx no modelo de papel da empresa | pronta |
 | E10 | Criar cliente · criar campanha | prazos, entrada, labels | cliente pronto, campanha **falta** |
 
@@ -741,6 +741,30 @@ o cache (`invalidarPainel`) e o produto aparece na loja no mesmo segundo.
 - **Sem formulário de kit nesta rodada.** O kit está desligado
   (`situacao = 'oculto'`) por decisão do usuário, e a tela de componentes é
   outra tela inteira.
+
+### 5.1.5 Cadastro de turma · 11/08/2026
+
+E8 nasceu junto do cadastro de produto e no mesmo padrão: aba **Turmas** da E3,
+gaveta em `?turma=nova` ou `?turma=<id>`, lápis à mostra no cartão e excluir nos
+três pontos.
+
+- **O código é campo de primeira classe, não detalhe gerado.** Ele é a única
+  coisa que o aluno digita para achar a turma, então tem campo próprio, alfabeto
+  próprio e lugar próprio no cartão, numa linha com as letras afastadas.
+- **Alfabeto sem ambíguo, o mesmo do schema** (`grupo_codigo_formato`): caixa
+  alta, sem `O`, `0`, `I`, `1` e `L`. O código é escrito no quadro e digitado
+  por trinta pessoas, e é aí que "O" vira zero. `mascaraCodigo` descarta o
+  caractere na hora, então o formato errado nem chega a ser digitado.
+- **O código se sugere a partir do nome.** "3A" na campanha do Cláudio Brandão
+  preenche "CB3A", que é o formato do papel. Para de sugerir assim que alguém
+  escreve no campo. Doze turmas com código inventado à mão é onde nasce o código
+  repetido.
+- **Código repetido é recusado em português** antes de o Postgres reclamar de
+  constraint em inglês. O `unique` do banco continua sendo a trava real.
+- **Trocar o código ao editar é permitido**, com aviso: derruba o link antigo, e
+  quem já entrou continua dentro, porque a sessão guarda o grupo, não o código.
+- **A visão geral avisa o que falta**, na ordem da jornada do §6: primeiro turma,
+  depois produto. Cada aviso some sozinho quando a peça existe.
 
 **Por que foto na vitrine e SVG no preview** (a combinação é proposital): a foto vende e
 mostra caimento; o SVG garante que o nome apareça sempre na mesma posição, com o mesmo

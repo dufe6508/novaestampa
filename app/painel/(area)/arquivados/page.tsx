@@ -68,10 +68,10 @@ function Clientes({ clientes }: { clientes: ClienteResumo[] }) {
 
           <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-caption text-muted">
             <span data-nums>
-              {cliente.campanhas} {cliente.campanhas === 1 ? "campanha" : "campanhas"}
+              {cliente.campanhas} {cliente.campanhas === 1 ? "Campanha" : "Campanhas"}
             </span>
             <span data-nums>
-              {cliente.pedidos} {cliente.pedidos === 1 ? "pedido" : "pedidos"}
+              {cliente.pedidos} {cliente.pedidos === 1 ? "Pedido" : "Pedidos"}
             </span>
             <Valor centavos={cliente.recebido_centavos} tom="forte" />
           </div>
@@ -169,7 +169,7 @@ export default async function Arquivados({
                   {campanha.grupos} {campanha.grupos === 1 ? campanha.label_grupo.toLowerCase() : campanha.label_grupo_plural.toLowerCase()}
                 </span>
                 <span data-nums>
-                  {campanha.pedidos} {campanha.pedidos === 1 ? "pedido" : "pedidos"}
+                  {campanha.pedidos} {campanha.pedidos === 1 ? "Pedido" : "Pedidos"}
                 </span>
                 <Valor centavos={campanha.recebido_centavos} tom="forte" />
               </div>

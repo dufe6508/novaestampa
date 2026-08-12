@@ -123,7 +123,7 @@ export default async function Cobranca({
           <Kpi
             rotulo="Pedidos"
             valor={String(lista.length)}
-            nota={`${alunos} ${alunos === 1 ? "aluno" : "alunos"}`}
+            nota={`${alunos} ${alunos === 1 ? "Aluno" : "Alunos"}`}
           />
           <Kpi
             rotulo="Média por pedido"
@@ -259,8 +259,8 @@ export default async function Cobranca({
                 <tfoot>
                   <tr className="border-t border-line-strong bg-surface-2">
                     <td colSpan={5} className={`${TD} text-caption font-semibold text-ink-2`}>
-                      {lista.length} {lista.length === 1 ? "pedido" : "pedidos"} · {alunos}{" "}
-                      {alunos === 1 ? "aluno" : "alunos"}
+                      {lista.length} {lista.length === 1 ? "Pedido" : "Pedidos"} · {alunos}{" "}
+                      {alunos === 1 ? "Aluno" : "Alunos"}
                     </td>
                     <td className={`${TD} text-right`}>
                       <Valor
@@ -311,7 +311,7 @@ export default async function Cobranca({
             ))}
             <li className="flex items-baseline justify-between gap-3 bg-surface-2 px-4 py-2.5">
               <span className="text-caption font-semibold text-ink-2">
-                {lista.length} {lista.length === 1 ? "pedido" : "pedidos"}
+                {lista.length} {lista.length === 1 ? "Pedido" : "Pedidos"}
               </span>
               <span className="text-caption text-muted">
                 falta{" "}

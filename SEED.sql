@@ -181,10 +181,6 @@ begin
                   (array['pix','dinheiro','cartao'])[1 + floor(random()*3)::int]::metodo_pagamento,
                   case when random() < 0.3 then 'manual' else 'simulado' end,
                   v_criado + interval '1 day');
-        elsif v_sorte < 0.83 then
-          -- pagou parte da entrada
-          insert into pagamento (parcela_id, valor_centavos, metodo, provider, pago_em)
-          values (v_parcela1, round(v_entrada * 0.5), 'dinheiro', 'manual', v_criado + interval '2 days');
         else
           -- nada pago (vira 'atrasado' sozinho quando o vencimento passa)
           null;

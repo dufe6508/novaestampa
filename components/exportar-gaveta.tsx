@@ -39,8 +39,8 @@ export function ExportarGaveta({
       titulo="Exportar"
       subtitulo={
         produto
-          ? `${produto} · ${total} ${total === 1 ? "peça" : "peças"}`
-          : `${total} ${total === 1 ? "peça" : "peças"}`
+          ? `${produto} · ${total} ${total === 1 ? "Peça" : "Peças"}`
+          : `${total} ${total === 1 ? "Peça" : "Peças"}`
       }
       fechar={fechar}
     >

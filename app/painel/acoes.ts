@@ -11,6 +11,7 @@ import {
   capitalizarFrase,
   capitalizarNome,
   centavosDe,
+  mascaraCodigo,
   mascaraTelefone,
   nomeCompletoValido,
   telefoneValido,
@@ -235,6 +236,59 @@ export async function cancelarPedido(_estado: string | null, dados: FormData) {
     .from("pedido")
     .update({ status: "cancelado", atualizado_em: new Date().toISOString() })
     .eq("id", pedidoId);
+
+  if (error) return erro(error);
+  atualizar();
+}
+
+/**
+ * Cancela vários pedidos de uma vez, a limpeza da fila de desistência.
+ *
+ * Existe porque a fila real tem dezenas de linhas: gente que fez o pedido, nunca
+ * pagou nada e passou do vencimento. Ligar para todas gera uma lista de
+ * cancelamentos, não um. Cancelado sai de todo relatório e de toda soma sozinho,
+ * porque as consultas filtram `status = 'ativo'`, e o histórico fica no banco.
+ *
+ * **A trava é dura de propósito: pedido com qualquer pagamento não entra no
+ * lote.** Cancelar quem já pôs dinheiro abre a conversa de devolução, e devolução
+ * depende da decisão de estorno, que ficou para depois (FINANCEIRO.md §11). Um
+ * cancelamento individual desses continua possível na gaveta do pedido, onde a
+ * pessoa vê o valor pago antes de decidir.
+ */
+export async function cancelarPedidos(_estado: string | null, dados: FormData) {
+  const barrado = await semSessao();
+  if (barrado) return barrado;
+
+  const ids = String(dados.get("pedidos") ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  if (ids.length === 0) return "Nenhum pedido selecionado.";
+
+  // Quem pagou algo fica fora. A conferência é no banco, não na tela: a tela
+  // pode estar velha, e a lista de ids vem da URL.
+  const { data: comPagamento, error: erroLeitura } = await db()
+    .from("vw_pedido")
+    .select("id,aluno_nome,pago_centavos")
+    .in("id", ids)
+    .gt("pago_centavos", 0)
+    .returns<{ id: string; aluno_nome: string; pago_centavos: number }[]>();
+
+  if (erroLeitura) return erro(erroLeitura);
+
+  if (comPagamento?.length) {
+    const nomes = comPagamento.map((p) => p.aluno_nome).join(", ");
+    return comPagamento.length === 1
+      ? `${nomes} já pagou parte do pedido. Cancele esse pedido pela gaveta dele, com o valor pago à vista.`
+      : `${comPagamento.length} desses pedidos já têm pagamento (${nomes}). Desmarque e cancele um por um pela gaveta.`;
+  }
+
+  const { error } = await db()
+    .from("pedido")
+    .update({ status: "cancelado", atualizado_em: new Date().toISOString() })
+    .in("id", ids)
+    .eq("status", "ativo");
 
   if (error) return erro(error);
   atualizar();
@@ -571,6 +625,117 @@ export async function excluirCampanha(_estado: string | null, dados: FormData) {
     return "Esta campanha já tem pedidos e não pode ser excluída. Encerre a campanha em vez disso.";
 
   const { error } = await db().from("campanha").delete().eq("id", id);
+  if (error) return erro(error);
+
+  atualizar();
+  redirect(String(dados.get("voltar") || "/painel"));
+}
+
+// ------------------------------------------------------------
+// Grupo (turma) · nasce dentro da campanha
+// ------------------------------------------------------------
+
+/**
+ * Lê e valida o formulário da turma.
+ *
+ * O código é o que o aluno digita para achar a turma, então ele é normalizado
+ * aqui do mesmo jeito que o campo normaliza no navegador: caixa alta e sem os
+ * caracteres ambíguos. Sem isso, o mesmo código digitado com "O" no lugar do
+ * zero cairia na constraint do banco e voltaria em inglês.
+ */
+function lerGrupo(dados: FormData) {
+  const nome = capitalizarNome(String(dados.get("nome") ?? "")).trim();
+  if (!nome) return "Escreva o nome da turma.";
+
+  const codigo = mascaraCodigo(String(dados.get("codigo") ?? ""));
+  if (codigo.length < 4)
+    return "O código precisa ter de 4 a 10 caracteres, sem O, 0, I, 1 nem L.";
+
+  return { nome, codigo };
+}
+
+/**
+ * O código é único no sistema inteiro, não por campanha: ele é a única coisa
+ * que o aluno digita, e duas turmas com o mesmo código não teriam como ser
+ * separadas. A checagem aqui existe só para a tela dizer isso em português,
+ * porque a violação de unicidade do Postgres volta em inglês falando de
+ * constraint. O banco continua sendo a trava de verdade.
+ */
+async function codigoEmUso(codigo: string, exceto?: string) {
+  let q = db().from("grupo").select("id").eq("codigo", codigo);
+  if (exceto) q = q.neq("id", exceto);
+  const { data } = await q.maybeSingle<{ id: string }>();
+  return !!data;
+}
+
+export async function criarGrupo(_estado: string | null, dados: FormData) {
+  const barrado = await semEmpresa();
+  if (barrado) return barrado;
+
+  const campanhaId = String(dados.get("campanha_id") ?? "");
+  if (!campanhaId) return "Campanha não informada.";
+
+  const valores = lerGrupo(dados);
+  if (typeof valores === "string") return valores;
+
+  if (await codigoEmUso(valores.codigo))
+    return `O código ${valores.codigo} já é de outra turma. Escolha outro.`;
+
+  const { error } = await db()
+    .from("grupo")
+    .insert({ ...valores, campanha_id: campanhaId });
+
+  if (error) return erro(error);
+
+  atualizar();
+  redirect(String(dados.get("voltar") || `/painel/campanha/${campanhaId}?aba=turmas`));
+}
+
+/**
+ * Edita a turma.
+ *
+ * Trocar o código é permitido e tem consequência: o link antigo (`/t/CB3A`)
+ * deixa de achar a turma, e quem já entrou continua dentro, porque a sessão do
+ * aluno guarda o grupo, não o código. A tela avisa em vez de proibir, porque
+ * corrigir um código digitado errado no cadastro é o caso comum.
+ */
+export async function editarGrupo(_estado: string | null, dados: FormData) {
+  const barrado = await semEmpresa();
+  if (barrado) return barrado;
+
+  const id = String(dados.get("grupo_id") ?? "");
+  if (!id) return "Turma não informada.";
+
+  const valores = lerGrupo(dados);
+  if (typeof valores === "string") return valores;
+
+  if (await codigoEmUso(valores.codigo, id))
+    return `O código ${valores.codigo} já é de outra turma. Escolha outro.`;
+
+  const { error } = await db().from("grupo").update(valores).eq("id", id);
+  if (error) return erro(error);
+
+  atualizar();
+  redirect(String(dados.get("voltar") || "/painel"));
+}
+
+/** Mesma trava do cliente e da campanha: com pedido, não sai. */
+export async function excluirGrupo(_estado: string | null, dados: FormData) {
+  const barrado = await semEmpresa();
+  if (barrado) return barrado;
+
+  const id = String(dados.get("grupo_id") ?? "");
+  if (!id) return "Turma não informada.";
+
+  const { count } = await db()
+    .from("pedido")
+    .select("id", { count: "exact", head: true })
+    .eq("grupo_id", id);
+
+  if ((count ?? 0) > 0)
+    return "Esta turma já tem pedidos e não pode ser excluída.";
+
+  const { error } = await db().from("grupo").delete().eq("id", id);
   if (error) return erro(error);
 
   atualizar();

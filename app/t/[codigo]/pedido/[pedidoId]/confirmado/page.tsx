@@ -53,7 +53,7 @@ export default async function Confirmado({
             <Certo className="h-4 w-4" />
             Pago {reais(pedido.pago)}
             {pedido.saldo > 0 && (
-              <span className="font-normal opacity-80">de {reais(pedido.valor)}</span>
+              <span className="font-normal opacity-80">De {reais(pedido.valor)}</span>
             )}
           </p>
 

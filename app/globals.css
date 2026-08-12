@@ -59,6 +59,17 @@
   /* bordô da peça, só dentro do preview da estampa */
   --color-bordo: #7b2233;
 
+  /* série de gráfico. Duas séries e nada mais: no financeiro, uma linha é o que
+     aconteceu e a outra é a referência (previsto, ou o período anterior).
+     Sem verde e sem vermelho aqui: os dois já significam estado em todo o
+     painel, e cor de série que também significa situação confunde as duas
+     leituras. O ciano fica de fora da série e volta só quando o gráfico precisa
+     apontar um ponto específico, que é o uso restrito da marca. */
+  --color-serie: #0e1416;         /* realizado, recebido: a série que manda */
+  --color-serie-2: #4a5658;       /* previsto, período anterior: sempre tracejada */
+  --color-serie-fundo: #edf0f0;   /* preenchimento sob a linha principal */
+  --color-serie-eixo: #e4e8e8;    /* linha de base e guias horizontais */
+
   /* forma, escala em dobro */
   --radius-sm: 0.5rem;
   --radius-md: 0.75rem;

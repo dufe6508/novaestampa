@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import {
+  PADRAO_CODIGO,
   PADRAO_TELEFONE,
   PREFIXO_BABY_LOOK,
   capitalizarDigitando,
+  mascaraCodigo,
   mascaraDinheiro,
   mascaraTelefone,
 } from "@/lib/formato";
@@ -30,7 +32,13 @@ const TONS = {
   primario: "bg-ink text-white hover:opacity-90 active:opacity-80 disabled:hover:opacity-30",
   secundario:
     "border border-line-strong bg-surface text-ink hover:bg-surface-2 active:bg-surface-2",
-  fantasma: "text-ink-2 hover:bg-surface-2 hover:text-ink",
+  // Com borda, e não texto solto. Sem ela o botão só existia no instante do
+  // hover: "Sair da conta" e "Sair mesmo assim" liam como legenda, e a pessoa
+  // que procurava a ação concluía que ela tinha sumido da tela. A borda é a
+  // `line` fraca, então ele continua sendo o degrau mais baixo dos três, agora
+  // visível parado.
+  fantasma:
+    "border border-line text-ink-2 hover:border-line-strong hover:bg-surface-2 hover:text-ink",
 } as const;
 
 type Tom = keyof typeof TONS;
@@ -113,6 +121,8 @@ export function Campo({
   erro?: string | null;
   /** Texto do aviso quando o valor não bate com `pattern`. */
   aviso?: string;
+  /** React 19: `ref` é prop comum, e o spread abaixo já a entrega ao input. */
+  ref?: React.Ref<HTMLInputElement>;
 }) {
   const idAjuda = ajuda || erro ? `${id}-ajuda` : undefined;
   const validacao = avisar(aviso);
@@ -307,6 +317,39 @@ export function CampoPreco(props: React.ComponentProps<typeof Campo>) {
       {...props}
       onInput={(e) => {
         e.currentTarget.value = mascaraDinheiro(e.currentTarget.value);
+      }}
+    />
+  );
+}
+
+/**
+ * Código de acesso da turma, com a máscara do alfabeto enquanto digita.
+ *
+ * Sobe a caixa e descarta o que o banco recusaria, então "cb 3a" vira "CB3A" e
+ * o `O` digitado no lugar do zero some na hora em vez de virar erro no envio. É
+ * a mesma abordagem do telefone e do preço: o formato errado nem chega a ser
+ * digitado, e o `pattern` fecha a porta para quem cola texto ou desliga o JS.
+ *
+ * Monoespaçado e com as letras afastadas porque este código é lido em voz alta
+ * e copiado do quadro: é onde a diferença entre caracteres precisa aparecer.
+ */
+export function CampoCodigo(props: React.ComponentProps<typeof Campo>) {
+  return (
+    <Campo
+      autoComplete="off"
+      autoCapitalize="characters"
+      spellCheck={false}
+      minLength={4}
+      maxLength={10}
+      pattern={PADRAO_CODIGO}
+      aviso="De 4 a 10 caracteres. Não use O, 0, I, 1 nem L."
+      className="font-mono uppercase tracking-[0.18em]"
+      {...props}
+      onInput={(e) => {
+        e.currentTarget.value = mascaraCodigo(e.currentTarget.value);
+        // Encadeia em vez de sobrescrever: quem usa este campo precisa saber
+        // que a pessoa digitou nele, para parar de sugerir por cima.
+        props.onInput?.(e);
       }}
     />
   );

@@ -199,10 +199,10 @@ function CartaoCliente({
         <Barra parte={cliente.recebido_centavos} total={cliente.vendido_centavos} />
 
         <p className="text-caption text-muted">
-          <span data-nums>de {reais(cliente.vendido_centavos)}</span>
+          <span data-nums>De {reais(cliente.vendido_centavos)}</span>
           {" · "}
           <span data-nums>{cliente.pedidos}</span>{" "}
-          {cliente.pedidos === 1 ? "pedido" : "pedidos"}
+          {cliente.pedidos === 1 ? "Pedido" : "Pedidos"}
           {prazo && (
             <>
               {" · "}

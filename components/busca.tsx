@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * Busca que filtra enquanto se digita.
@@ -40,7 +40,6 @@ export function Busca({
   const caminho = usePathname();
   const params = useSearchParams();
   const [texto, setTexto] = useState(valor ?? "");
-  const [buscando, iniciar] = useTransition();
 
   // Sem isto o componente navega sozinho ao montar, e a primeira renderização
   // de cada tela viraria uma segunda renderização idêntica.
@@ -58,9 +57,7 @@ export function Busca({
       else proximos.delete(nome);
 
       const query = proximos.toString();
-      iniciar(() => {
-        router.replace(query ? `${caminho}?${query}` : caminho, { scroll: false });
-      });
+      router.replace(query ? `${caminho}?${query}` : caminho, { scroll: false });
     }, 220);
 
     return () => clearTimeout(id);
@@ -92,15 +89,6 @@ export function Busca({
           text-ink outline-none transition-[border-color,box-shadow] duration-base ease-soft
           placeholder:text-faint focus:border-brand-deep
           focus:shadow-[0_0_0_3px_rgb(15_168_188_/_0.16)]"
-      />
-
-      {/* Sinal de que a lista atrás ainda é a antiga. Some sozinho, e some
-          rápido: piscar a cada letra seria pior que não ter nada. */}
-      <span
-        aria-hidden="true"
-        className={`pointer-events-none absolute right-3 size-1.5 rounded-full bg-brand
-          transition-opacity duration-base ease-soft motion-safe:animate-pulse
-          ${buscando ? "opacity-100" : "opacity-0"}`}
       />
     </form>
   );

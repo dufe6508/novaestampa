@@ -16,15 +16,19 @@ execFileSync(
 );
 
 const {
+  PADRAO_CODIGO,
   PADRAO_NOME_COMPLETO,
   PADRAO_TELEFONE,
   capitalizarDigitando,
   capitalizarFrase,
   capitalizarNome,
   centavosDe,
+  codigoValido,
+  mascaraCodigo,
   mascaraDinheiro,
   mascaraTelefone,
   nomeCompletoValido,
+  sugerirCodigo,
   telefoneValido,
 }: typeof import("./formato.ts") = await import(
   pathToFileURL(join(saida, "formato.js")).href
@@ -117,5 +121,33 @@ assert.ok(Number.isNaN(centavosDe("")));
 for (const centavos of [1, 600, 15990, 2199000]) {
   assert.equal(centavosDe(mascaraDinheiro(String(centavos))), centavos, String(centavos));
 }
+
+/**
+ * Código da turma. Mesma armadilha do telefone, e pior: aqui a terceira versão
+ * da regra é o `check` do banco (`grupo_codigo_formato`). Máscara, `pattern` e
+ * constraint precisam concordar, senão o admin digita algo que a tela aceita e
+ * o banco recusa com erro em inglês.
+ */
+assert.equal(mascaraCodigo("cb 3a"), "CB3A");
+assert.equal(mascaraCodigo("adm-4"), "ADM4");
+// Os cinco ambíguos caem: O, 0, I, 1 e L não existem no alfabeto.
+assert.equal(mascaraCodigo("LOGI01"), "G");
+assert.equal(mascaraCodigo("ABCDEFGHJKMNP"), "ABCDEFGHJK");
+
+assert.ok(codigoValido("CB3A"));
+assert.ok(!codigoValido("CB3"));
+assert.ok(!codigoValido("CB3O"));
+assert.ok(!codigoValido("ABCDEFGHJKM"));
+
+// A máscara nunca produz o que o `pattern` recusa, desde que sobrem 4.
+for (const bruto of ["cb 3a", "adm-4", "Setor Logística", "3B"]) {
+  const c = mascaraCodigo(bruto);
+  if (c.length >= 4) assert.ok(casa(PADRAO_CODIGO, c), bruto);
+}
+
+assert.equal(sugerirCodigo("3A", "Cláudio Brandão"), "CB3A");
+assert.equal(sugerirCodigo("3A", "Colégio Cláudio Brandão"), "CCB3A");
+// Curto demais depois da filtragem: não sugere nada em vez de sugerir inválido.
+assert.equal(sugerirCodigo("3A", "Vega"), "");
 
 console.log("formato: ok");

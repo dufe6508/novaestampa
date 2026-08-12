@@ -7,7 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "node lib/formato.test.mts && node lib/data.test.mts"
+    "test": "node lib/formato.test.mts && node lib/data.test.mts && node lib/contas.test.mts"
   },
   "keywords": [],
   "author": "",

@@ -65,12 +65,12 @@ export default async function Produto({
               <p className="text-body-sm text-muted">
                 {produto.max_parcelas > 2 ? (
                   <>
-                    Entrada de {reais(entrada)} e até {produto.max_parcelas - 1}x de{" "}
+                    Entrada De {reais(entrada)} e até {produto.max_parcelas - 1}x de{" "}
                     {reais(parcelaMinima)}.
                   </>
                 ) : (
                   <>
-                    Entrada de {reais(entrada)}, o resto na entrega
+                    Entrada De {reais(entrada)}, o resto na entrega
                     {turma.entrega_prevista ? ` em ${dia(turma.entrega_prevista)}` : ""}.
                   </>
                 )}

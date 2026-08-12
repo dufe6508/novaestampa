@@ -79,15 +79,6 @@ export default async function Revisao({
   const entrada = Math.round((produto.preco_centavos * turma.percentual_entrada) / 100);
   const restante = produto.preco_centavos - entrada;
 
-  /**
-   * Em quantas vezes. A primeira parcela é sempre a entrada, então escolher 3
-   * quer dizer entrada mais duas. `1` é pagar tudo agora, e por isso aparece
-   * como "à vista" em vez de "1x", que não quer dizer nada para quem compra.
-   */
-  const vezes = Array.from({ length: produto.max_parcelas }, (_, i) => i + 1);
-  const valorDaVez = (n: number) =>
-    n === 1 ? produto!.preco_centavos : Math.round(restante / (n - 1));
-
   // Volta para a personalização já preenchida, com o campo certo em foco.
   // Sem isso, corrigir uma letra custaria redigitar o pedido inteiro.
   const editar = (foco: "nome" | "tamanho") => {
@@ -103,7 +94,11 @@ export default async function Revisao({
   async function confirmar(_estado: string | null, dados: FormData) {
     "use server";
 
-    const escolhidas = Number(dados.get("parcelas") ?? 2);
+    // Entrada mais uma, que é o 50/50 da empresa. Em quantas vezes deixou de
+    // ser perguntado aqui: a tela seguinte já decide quanto pagar agora, e a
+    // mesma pergunta em duas telas seguidas faz o aluno responder duas vezes
+    // sem saber qual das duas valeu.
+    const escolhidas = Math.min(2, produto!.max_parcelas);
 
     const r = await criarPedido(
       aluno!.id,
@@ -227,47 +222,7 @@ export default async function Revisao({
         </div>
       </section>
 
-      <FormAcao acao={confirmar} texto="Confirmar pedido" pendenteTexto="Confirmando…">
-        {/* Em quantas vezes, só quando há mais de uma opção. Um produto à vista
-            não precisa de uma pergunta com uma resposta só. */}
-        {vezes.length > 1 && restante > 0 && (
-          <fieldset className="flex flex-col gap-2">
-            <legend className="mb-2 text-body-sm font-semibold text-ink">Em quantas vezes</legend>
-            <div className="flex flex-col gap-2">
-              {vezes.map((n) => (
-                <label
-                  key={n}
-                  className="cursor-pointer rounded-lg has-[:focus-visible]:outline
-                    has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2
-                    has-[:focus-visible]:outline-brand-deep"
-                >
-                  <input
-                    type="radio"
-                    name="parcelas"
-                    value={n}
-                    defaultChecked={n === Math.min(2, produto.max_parcelas)}
-                    className="peer sr-only"
-                  />
-                  <span
-                    className="flex items-baseline justify-between gap-3 rounded-lg border
-                      border-line-strong bg-surface px-4 py-3 text-body-sm text-ink-2
-                      transition-[color,border-color,background-color] duration-fast ease-soft
-                      hover:border-ink peer-checked:border-ink peer-checked:bg-surface-2
-                      peer-checked:text-ink peer-checked:font-semibold"
-                  >
-                    <span>{n === 1 ? "À vista" : `Entrada + ${n - 1}x`}</span>
-                    <span data-nums className="shrink-0">
-                      {n === 1
-                        ? reais(valorDaVez(1))
-                        : `${reais(entrada)} + ${n - 1}x de ${reais(valorDaVez(n))}`}
-                    </span>
-                  </span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-        )}
-      </FormAcao>
+      <FormAcao acao={confirmar} texto="Confirmar pedido" pendenteTexto="Confirmando…" />
 
       <p className="text-center text-caption leading-relaxed text-muted">
         Depois de confirmar você ainda pode mudar{" "}

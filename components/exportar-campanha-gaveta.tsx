@@ -27,7 +27,7 @@ export function ExportarCampanhaGaveta({
     <Gaveta
       rotulo="Exportar listas de produção"
       titulo="Exportar produção"
-      subtitulo={`${campanha} · ${total} ${total === 1 ? "peça" : "peças"}`}
+      subtitulo={`${campanha} · ${total} ${total === 1 ? "Peça" : "Peças"}`}
       fechar={fechar}
     >
       <form action={`/exportar/campanha/${campanhaId}`} className="flex flex-1 flex-col">
@@ -62,7 +62,7 @@ export function ExportarCampanhaGaveta({
                     {turma.codigo}
                   </span>
                   <span data-nums className="w-16 shrink-0 text-right text-caption text-muted">
-                    {turma.pecas} {turma.pecas === 1 ? "peça" : "peças"}
+                    {turma.pecas} {turma.pecas === 1 ? "Peça" : "Peças"}
                   </span>
                 </label>
               </li>

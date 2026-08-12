@@ -33,7 +33,7 @@ export default async function Pedidos({ params }: { params: Promise<{ codigo: st
         <p className="text-body-sm text-muted">
           {pedidos.length === 0
             ? "Você ainda não pediu nada nesta turma."
-            : `${pedidos.length} ${pedidos.length === 1 ? "pedido" : "pedidos"} · ${
+            : `${pedidos.length} ${pedidos.length === 1 ? "Pedido" : "Pedidos"} · ${
                 turma.label_grupo
               } ${turma.grupo_nome}`}
         </p>

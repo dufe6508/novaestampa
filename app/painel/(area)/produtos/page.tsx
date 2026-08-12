@@ -107,7 +107,7 @@ function Campanha({
             {primeiro.cliente_nome}
             {" · "}
             <span data-nums>{produtos.length}</span>{" "}
-            {produtos.length === 1 ? "produto" : "produtos"}
+            {produtos.length === 1 ? "Produto" : "Produtos"}
             {pecas !== produtos.length && (
               <>
                 {" · "}
@@ -157,9 +157,9 @@ export default async function Produtos({
         titulo="Produtos"
         subtitulo={
           produtos.length > 0
-            ? `${produtos.length} ${produtos.length === 1 ? "produto" : "produtos"} em ${
+            ? `${produtos.length} ${produtos.length === 1 ? "Produto" : "Produtos"} em ${
                 grupos.length
-              } ${grupos.length === 1 ? "campanha" : "campanhas"}${
+              } ${grupos.length === 1 ? "Campanha" : "Campanhas"}${
                 ativos !== produtos.length ? ` · ${produtos.length - ativos} desativados` : ""
               }`
             : undefined

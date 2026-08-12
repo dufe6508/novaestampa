@@ -91,6 +91,61 @@ export function nomeCompletoValido(valor: string) {
 export const PADRAO_NOME_COMPLETO = "\\s*\\S{2,}(\\s+\\S+)*\\s+\\S{2,}\\s*";
 
 /**
+ * Código de acesso da turma.
+ *
+ * O alfabeto é o do schema (`grupo_codigo_formato`): caixa alta, sem `O`, `0`,
+ * `I`, `1` e `L`. O código é escrito no quadro e digitado no celular por trinta
+ * pessoas, e é aí que "O" vira zero e "l" vira um. Tirar os cinco ambíguos
+ * custa cinco letras e mata a classe inteira de erro.
+ *
+ * Quatro a dez caracteres: menos que quatro colide entre turmas, mais que dez
+ * ninguém digita sem errar.
+ */
+export const ALFABETO_CODIGO = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+
+/** Espelha o `check` do banco, para o input barrar antes de enviar. */
+export const PADRAO_CODIGO = `[${ALFABETO_CODIGO}]{4,10}`;
+
+/**
+ * Máscara do código enquanto digita: sobe a caixa e descarta o que o banco
+ * recusaria. "cb 3a" vira "CB3A", e o ambíguo cai em vez de virar erro no envio.
+ */
+export function mascaraCodigo(valor: string) {
+  return valor
+    .toUpperCase()
+    .split("")
+    .filter((c) => ALFABETO_CODIGO.includes(c))
+    .join("")
+    .slice(0, 10);
+}
+
+export function codigoValido(valor: string) {
+  const c = mascaraCodigo(valor);
+  return c.length >= 4 && c === valor.toUpperCase().trim();
+}
+
+/**
+ * Sugestão de código a partir do nome da turma e da campanha.
+ *
+ * "3A" na campanha "Formatura 2026" do Cláudio Brandão vira "CB3A", que é o
+ * código do seed e o formato que a empresa já usa: iniciais mais a turma. É
+ * chute com um clique de correção, não regra: o admin sempre pode escrever
+ * outro, e o banco é quem garante que não repete.
+ */
+export function sugerirCodigo(nomeTurma: string, nomeCliente: string) {
+  const iniciais = nomeCliente
+    .split(/\s+/)
+    .filter((p) => p.length > 2)
+    .map((p) => p[0])
+    .join("");
+
+  const codigo = mascaraCodigo(iniciais + nomeTurma);
+  // Curto demais depois da filtragem (nome só de ambíguos, cliente sem
+  // iniciais aproveitáveis): melhor não sugerir do que sugerir inválido.
+  return codigo.length >= 4 ? codigo : "";
+}
+
+/**
  * Nome próprio com inicial maiúscula.
  *
  * Quem digita no celular digita "joão fernandes", e o nome aparece assim na

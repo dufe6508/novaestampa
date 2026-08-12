@@ -54,7 +54,7 @@ export default async function Gestao({
             rotulo="Pedidos"
             valor={String(grupo.pedidos)}
             nota={`${grupo.alunos_com_pedido} ${
-              grupo.alunos_com_pedido === 1 ? "aluno" : "alunos"
+              grupo.alunos_com_pedido === 1 ? "Aluno" : "Alunos"
             }`}
           />
           <Kpi
@@ -74,7 +74,7 @@ export default async function Gestao({
             nota={
               grupo.pedidos_atrasados > 0
                 ? `${grupo.pedidos_atrasados} ${
-                    grupo.pedidos_atrasados === 1 ? "pedido vencido" : "pedidos vencidos"
+                    grupo.pedidos_atrasados === 1 ? "Pedido vencido" : "Pedidos vencidos"
                   }`
                 : "nada vencido"
             }

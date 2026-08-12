@@ -52,24 +52,34 @@ function Foto({ produto }: { produto: ProdutoCadastro }) {
  * Baby look ganha faixa própria porque é outra modelagem, não outro tamanho:
  * junto na mesma régua, "M" e "M baby look" leriam como dois pontos da mesma
  * escala.
+ *
+ * O rótulo entra dentro da faixa, como primeira célula, e não solto ao lado.
+ * Fora dela ele flutuava no meio da linha, em caixa alta, com o mesmo peso
+ * visual de um tamanho, e a leitura era "PP P M G GG XG BABY LOOK PP P M G GG",
+ * uma régua só com uma palavra estranha no meio. Dentro, ele vira a etiqueta da
+ * faixa que vem depois, que é o que ele é.
  */
 function Faixa({ rotulo, tamanhos }: { rotulo?: string; tamanhos: string[] }) {
   return (
-    <div className="flex min-w-0 items-center gap-2">
-      {rotulo && <span className="label shrink-0 text-faint">{rotulo}</span>}
-      <ul className="flex flex-wrap overflow-hidden rounded-md bg-surface-2">
-        {tamanhos.map((t) => (
-          <li
-            key={t}
-            data-nums
-            className="border-l border-line px-2 py-0.5 text-caption font-medium text-ink-2
-              first:border-l-0"
-          >
-            {t}
-          </li>
-        ))}
-      </ul>
-    </div>
+    <ul className="flex min-w-0 flex-wrap items-stretch overflow-hidden rounded-md bg-surface-2">
+      {rotulo && (
+        <li
+          className="bg-line/40 px-2 py-0.5 text-caption font-medium text-muted"
+        >
+          {rotulo}
+        </li>
+      )}
+      {tamanhos.map((t) => (
+        <li
+          key={t}
+          data-nums
+          className="border-l border-line px-2 py-0.5 text-caption font-medium text-ink-2
+            first:border-l-0"
+        >
+          {t}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -122,7 +132,7 @@ function Linha({ produto, fechar }: { produto: ProdutoCadastro; fechar: string }
 
         <p className="text-caption text-muted">
           <span data-nums>{produto.pedidos}</span>{" "}
-          {produto.pedidos === 1 ? "pedido" : "pedidos"}
+          {produto.pedidos === 1 ? "Pedido" : "Pedidos"}
           {produto.max_parcelas > 1 && (
             <>
               {" · até "}

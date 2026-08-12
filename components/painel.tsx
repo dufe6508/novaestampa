@@ -476,7 +476,7 @@ export function ResumoProdutos({ linhas }: { linhas: ResumoProduto[] }) {
               </span>
               {l.atrasados > 0 && (
                 <span data-nums className="text-caption text-danger">
-                  {l.atrasados} {l.atrasados === 1 ? "pedido vencido" : "pedidos vencidos"}
+                  {l.atrasados} {l.atrasados === 1 ? "Pedido vencido" : "Pedidos vencidos"}
                 </span>
               )}
             </div>

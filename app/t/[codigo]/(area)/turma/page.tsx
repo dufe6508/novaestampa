@@ -35,7 +35,7 @@ export default async function Turma({ params }: { params: Promise<{ codigo: stri
             ? "Prazo encerrado."
             : restamPedidos === 0
               ? "Hoje é o último dia."
-              : `Faltam ${restamPedidos} ${restamPedidos === 1 ? "dia" : "dias"}.`,
+              : `Faltam ${restamPedidos} ${restamPedidos === 1 ? "Dia" : "Dias"}.`,
     },
     {
       rotulo: "Alterações até",

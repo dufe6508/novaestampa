@@ -25,11 +25,25 @@ const TONS = {
 
 type Tom = keyof typeof TONS;
 
+/**
+ * A caixa do chip.
+ *
+ * Três acertos de forma, todos por causa da lista longa. O canto era `rounded-sm`,
+ * quase reto, e num retângulo de 60px de largura isso lê como recorte, não como
+ * peça; `rounded-md` dá o mesmo canto dos botões e campos ao lado. O aro interno
+ * de 1px na própria cor do texto desenha a borda do chip contra fundos claros
+ * parecidos: sem ele, o `neutro` sobre `surface-2` some, e o selo vira uma mancha
+ * sem contorno. E a caixa alta de rótulo saiu do texto: "Quitado" é palavra que
+ * se lê, não etiqueta de coluna.
+ *
+ * Continua sem pílula e sem bolinha, que é a decisão de CLAUDE.md §5.1.2.
+ */
 function Base({ tom, children }: { tom: Tom; children: React.ReactNode }) {
   return (
     <span
-      className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-sm px-1.5 py-0.5
-        text-[11.5px] font-semibold leading-[1.4] ${TONS[tom]}`}
+      className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-md px-1.5
+        py-[1px] text-[11px] font-semibold leading-[1.5] ring-1 ring-inset ring-current/15
+        ${TONS[tom]}`}
     >
       {children}
     </span>

@@ -62,7 +62,7 @@ function CartaoCampanha({
           <p data-nums className="text-caption text-muted">
             {campanha.grupos}{" "}
             {campanha.grupos === 1 ? campanha.label_grupo : campanha.label_grupo_plural} ·{" "}
-            {campanha.pedidos} {campanha.pedidos === 1 ? "pedido" : "pedidos"}
+            {campanha.pedidos} {campanha.pedidos === 1 ? "Pedido" : "Pedidos"}
           </p>
         </div>
 
@@ -120,7 +120,7 @@ function CartaoCampanha({
         <div className="flex flex-col">
           <dt className="label text-muted">Pedidos até</dt>
           <dd data-nums className="text-body-sm text-ink-2">
-            {data(campanha.prazo_pedidos) ?? "sem data"}
+            {data(campanha.prazo_pedidos) ?? "Sem data"}
           </dd>
         </div>
       </dl>
