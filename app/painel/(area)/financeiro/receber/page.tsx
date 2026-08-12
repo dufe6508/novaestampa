@@ -1,16 +1,9 @@
 import Link from "next/link";
 import { cancelarPedidos } from "@/app/painel/acoes";
 import { reais } from "@/lib/formato";
-import {
-  buscarCampanha,
-  buscarPedido,
-  listarClientes,
-  listarGrupos,
-  listarTodasCampanhas,
-} from "@/lib/painel";
+import { buscarCampanha, buscarPedido } from "@/lib/painel";
 import {
   COBRANCA,
-  PERIODO_PADRAO,
   ehFaixa,
   filas,
   foraDoPrazo,
@@ -23,7 +16,6 @@ import {
 import { Busca, Retratil, Topo } from "@/components/painel";
 import { FaixasAtraso, Modos, Ranking } from "@/components/financeiro";
 import { TabelaReceber } from "@/components/tabela-receber";
-import { BotaoFiltros, FiltroGaveta } from "@/components/filtro-gaveta";
 import { DetalhePedido } from "@/components/detalhe-pedido";
 import { Confirmar } from "@/components/confirmar";
 import { Vazio } from "@/components/campos";
@@ -55,7 +47,6 @@ type Query = {
   turma?: string;
   q?: string;
   pedido?: string;
-  filtros?: string;
   sel?: string | string[];
 };
 
@@ -78,24 +69,18 @@ export default async function Receber({ searchParams }: { searchParams: Promise<
     turma,
     q,
     pedido: pedidoId,
-    filtros,
     sel,
   } = await searchParams;
 
   const modo: Modo = m === "atrasado" || m === "sem_pagamento" ? m : "tudo";
   const faixa: Faixa | undefined = ehFaixa(f) ? f : undefined;
 
-  const [contas, clientes, campanhas] = await Promise.all([
-    listarContasReceber(cliente, campanha, turma),
-    listarClientes(),
-    listarTodasCampanhas(),
-  ]);
-  const turmas = campanha ? await listarGrupos(campanha) : [];
+  const contas = await listarContasReceber(cliente, campanha, turma);
 
   const base = "/painel/financeiro/receber";
   const url = (extra: Partial<Query>) => {
     const p = new URLSearchParams();
-    const campos = { modo, faixa, oficina, cliente, campanha, turma, q, filtros, ...extra };
+    const campos = { modo, faixa, oficina, cliente, campanha, turma, q, ...extra };
     for (const [k, v] of Object.entries(campos)) {
       if (!v || typeof v !== "string") continue;
       if (k === "modo" && v === "tudo") continue;
@@ -162,8 +147,6 @@ export default async function Receber({ searchParams }: { searchParams: Promise<
         ? contas[0]?.cliente_nome
         : null;
 
-  const ativos = [cliente, campanha, turma].filter(Boolean).length;
-
   return (
     <>
       <Topo
@@ -173,9 +156,21 @@ export default async function Receber({ searchParams }: { searchParams: Promise<
         subtitulo={
           escopoNome ? `${TITULOS[modo].explica} Escopo: ${escopoNome}.` : TITULOS[modo].explica
         }
+        // O escopo chega pela navegação, não por filtro: quem entrou por uma
+        // escola ou por uma turma já escolheu na tela anterior, e o único
+        // controle que falta aqui é desfazer isso.
         acoes={
           <div className="flex items-center gap-2">
-            <BotaoFiltros href={url({ filtros: "1" })} ativos={ativos} />
+            {escopoNome && (
+              <Link
+                href={url({ cliente: undefined, campanha: undefined, turma: undefined })}
+                className="inline-flex h-10 items-center rounded-md border border-line-strong
+                  bg-surface px-3.5 text-body-sm font-medium text-ink-2 transition-colors
+                  duration-fast ease-soft hover:border-ink hover:text-ink"
+              >
+                Ver a empresa inteira
+              </Link>
+            )}
             <Busca valor={q} placeholder="Buscar aluno" escondidos={escondidos} />
           </div>
         }
@@ -338,21 +333,6 @@ export default async function Receber({ searchParams }: { searchParams: Promise<
           pendenteTexto="Cancelando"
           ocultos={{ pedidos: selecionados.join(",") }}
           fechar={url({ sel: undefined })}
-        />
-      )}
-
-      {filtros === "1" && (
-        <FiltroGaveta
-          fechar={url({ filtros: undefined })}
-          periodo={PERIODO_PADRAO}
-          comPeriodo={false}
-          clientes={clientes.map((c) => ({ id: c.id, nome: c.nome }))}
-          campanhas={campanhas
-            .filter((c) => (cliente ? c.cliente_id === cliente : false))
-            .map((c) => ({ id: c.id, nome: c.nome }))}
-          turmas={turmas.map((g) => ({ id: g.id, nome: g.nome }))}
-          escolhido={{ cliente, campanha, turma }}
-          url={(extra) => url({ ...extra, filtros: "1" })}
         />
       )}
 

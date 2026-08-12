@@ -13,17 +13,24 @@ export function reais(centavos: number) {
 }
 
 /**
- * "BL M" vira "M baby look".
+ * "BL M" vira "M BL".
  *
  * A grade vem numa lista só do banco, com as modelagens femininas prefixadas.
- * O prefixo serve para agrupar na hora de escolher; em texto corrido ele é
- * sigla, e sigla o aluno não decifra.
+ * O prefixo serve para agrupar na hora de escolher; em lista e em tabela ele
+ * entra depois do tamanho, curto, para a coluna continuar comparável linha a
+ * linha: "M", "G", "M BL" leem na mesma largura, e "M Baby Look" quebrava a
+ * célula ou era truncado.
+ *
+ * A forma por extenso continua existindo onde ela é título de grupo, no seletor
+ * de tamanho e na grade do cadastro de produto.
  */
 export const PREFIXO_BABY_LOOK = "BL ";
 
+export const ROTULO_BABY_LOOK = "Baby look";
+
 export function tamanhoLegivel(t: string) {
   return t.startsWith(PREFIXO_BABY_LOOK)
-    ? `${t.slice(PREFIXO_BABY_LOOK.length)} Baby Look`
+    ? `${t.slice(PREFIXO_BABY_LOOK.length)} BL`
     : t;
 }
 

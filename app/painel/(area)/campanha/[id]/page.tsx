@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import {
   agruparCorte,
   buscarCampanha,
+  buscarPedido,
   data,
   listarGrupos,
   listarPedidosDaCampanha,
@@ -39,6 +40,8 @@ import { AcaoIcone, ItemMenu, MenuAcoes } from "@/components/menu-acoes";
 import { TurmaGaveta } from "@/components/turma-gaveta";
 import { excluirCampanha, excluirGrupo, excluirProduto } from "@/app/painel/acoes";
 import { ExportarCampanhaGaveta } from "@/components/exportar-campanha-gaveta";
+import { FinanceiroDoEscopo } from "@/components/financeiro-escopo";
+import { DetalhePedido } from "@/components/detalhe-pedido";
 
 /**
  * E3 · Campanha, em três abas.
@@ -74,6 +77,8 @@ type Query = {
   /** `nova` cria; um id edita. */
   turma?: string;
   excluir_turma?: string;
+  /** Detalhe aberto sobre a aba Financeiro. */
+  pedido?: string;
 };
 
 /** O botão de ação da tela. Mesma peça na faixa de abas, no vazio e no aviso. */
@@ -158,9 +163,9 @@ function CartaoTurma({
         transition-colors duration-base ease-soft focus-within:border-ink-2 hover:border-ink-2"
       style={{ "--atraso": `${atraso}ms` } as React.CSSProperties}
     >
-      <div className="flex flex-col gap-5 p-5">
+      <div className="flex flex-col gap-3 p-4">
         <div className="flex items-start justify-between gap-3">
-          <div className="flex min-w-0 flex-col gap-1">
+          <div className="flex min-w-0 flex-col gap-0.5">
             <h3 className="min-w-0 truncate text-h3">
               <Link
                 href={`/painel/turma/${grupo.id}`}
@@ -200,7 +205,7 @@ function CartaoTurma({
           </div>
         </div>
 
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-1">
           <span
             data-nums
             className={`text-num font-semibold tracking-tight
@@ -209,17 +214,17 @@ function CartaoTurma({
             {reais(grupo.a_receber_centavos)}
           </span>
           <span className="text-caption text-muted">
-            A receber · {grupo.pedidos} pedidos · {grupo.pedidos_pagos} Quitados
+            A receber · {grupo.pedidos} Pedidos · {grupo.pedidos_pagos} Quitados
             {" ("}
             {pct(grupo.pedidos_pagos, grupo.pedidos)}%)
           </span>
         </div>
 
-        <div className="mt-auto flex flex-col gap-2">
+        <div className="mt-auto flex flex-col gap-1.5">
           <Barra parte={grupo.pedidos_pagos} total={grupo.pedidos} tom="success" />
           {vencido && (
             <span data-nums className="text-caption text-danger">
-              {reais(grupo.atrasado_centavos)} vencidos em {grupo.pedidos_atrasados} pedidos
+              {reais(grupo.atrasado_centavos)} Vencidos em {grupo.pedidos_atrasados} Pedidos
             </span>
           )}
         </div>
@@ -337,8 +342,18 @@ export default async function Campanha({
   searchParams: Promise<Query>;
 }) {
   const { id } = await params;
-  const { aba, q, editar, excluir, exportar, produto, excluir_produto, turma, excluir_turma } =
-    await searchParams;
+  const {
+    aba,
+    q,
+    editar,
+    excluir,
+    exportar,
+    produto,
+    excluir_produto,
+    turma,
+    excluir_turma,
+    pedido: pedidoId,
+  } = await searchParams;
 
   const campanha = await buscarCampanha(id);
   if (!campanha) notFound();
@@ -399,11 +414,20 @@ export default async function Campanha({
   const emTurmas = aba === "turmas";
   const emProducao = aba === "producao";
   const emProdutos = aba === "produtos";
+  const emFinanceiro = aba === "financeiro";
   const estado = new URLSearchParams();
   if (emTurmas) estado.set("aba", "turmas");
   if (emProducao) estado.set("aba", "producao");
   if (emProdutos) estado.set("aba", "produtos");
+  if (emFinanceiro) estado.set("aba", "financeiro");
   if (emTurmas && q) estado.set("q", q);
+
+  // O detalhe do pedido é gaveta sobre a aba Financeiro, como na turma: o
+  // endereço guarda o que está aberto e o voltar do navegador fecha.
+  const aberto = pedidoId ? await buscarPedido(pedidoId) : null;
+  // Pedido de outra campanha não abre aqui: trocar o id na URL mostraria o
+  // financeiro de gente que não é desta campanha.
+  const detalhe = aberto && grupos.some((g) => g.id === aberto.grupo_id) ? aberto : null;
   const fechar = estado.size ? `${base}?${estado.toString()}` : base;
   const comAcao = (acao: string) =>
     `${fechar}${fechar.includes("?") ? "&" : "?"}${acao}=1`;
@@ -497,7 +521,7 @@ export default async function Campanha({
           <Kpi
             rotulo="Recebido"
             valor={reais(campanha.recebido_centavos)}
-            nota={`${pct(campanha.recebido_centavos, campanha.vendido_centavos)}% do vendido · ${
+            nota={`${pct(campanha.recebido_centavos, campanha.vendido_centavos)}% Do vendido · ${
               campanha.pedidos_pagos
             } Quitados`}
           />
@@ -517,7 +541,7 @@ export default async function Campanha({
                 ? `${campanha.pedidos_atrasados} ${
                     campanha.pedidos_atrasados === 1 ? "Pedido" : "Pedidos"
                   } vencidos`
-                : "nada vencido"
+                : "Nada vencido"
             }
           />
         </Kpis>
@@ -526,7 +550,11 @@ export default async function Campanha({
       <Abas
         atraso={80}
         opcoes={[
-          { texto: "Visão geral", href: base, ativo: !emTurmas && !emProducao && !emProdutos },
+          {
+            texto: "Visão geral",
+            href: base,
+            ativo: !emTurmas && !emProducao && !emProdutos && !emFinanceiro,
+          },
           {
             texto: campanha.label_grupo_plural,
             href: `${base}?aba=turmas`,
@@ -545,6 +573,9 @@ export default async function Campanha({
             ativo: emProducao,
             contagem: pecasNoCorte,
           },
+          // A campanha inteira, sem abrir turma por turma. Mesmo componente da
+          // aba Financeiro da turma, com o escopo um nível acima.
+          { texto: "Financeiro", href: `${base}?aba=financeiro`, ativo: emFinanceiro },
         ]}
         // A busca só existe na aba que tem lista para filtrar. Em Produtos, o
         // lugar da direita é do botão que cria: cadastrar produto é a ação da
@@ -607,6 +638,13 @@ export default async function Campanha({
             ))}
           </ul>
         )
+      ) : emFinanceiro ? (
+        <FinanceiroDoEscopo
+          campanhaId={id}
+          url={(extra) =>
+            extra.pedido ? `${base}?aba=financeiro&pedido=${extra.pedido}` : `${base}?aba=financeiro`
+          }
+        />
       ) : emProdutos ? (
         catalogo.length === 0 ? (
           <Vazio
@@ -660,9 +698,6 @@ export default async function Campanha({
               </div>
             }
           >
-            <p className="border-b border-line px-4 py-2.5 text-caption leading-relaxed text-muted">
-              Consolidação das peças liberadas para produção, agrupadas por produto e tamanho.
-            </p>
             <div className="divide-y divide-line">
               {cortePorProduto.map((c) => (
                 <div
@@ -675,7 +710,7 @@ export default async function Campanha({
                       {c.produto}
                     </h3>
                     <span data-nums className="shrink-0 text-caption text-muted md:mt-0.5 md:block">
-                      {c.total} {c.total === 1 ? "peça liberada" : "peças liberadas"}
+                      {c.total} {c.total === 1 ? "Peça liberada" : "Peças liberadas"}
                     </span>
                   </div>
 
@@ -769,7 +804,7 @@ export default async function Campanha({
                     <span data-nums className="font-semibold text-ink">
                       {campanha.pedidos_pagos}
                     </span>{" "}
-                    de <span data-nums>{campanha.pedidos}</span> pedidos
+                    de <span data-nums>{campanha.pedidos}</span> Pedidos
                   </span>
                   <span data-nums className="text-num font-semibold">
                     {pct(campanha.pedidos_pagos, campanha.pedidos)}%
@@ -778,8 +813,8 @@ export default async function Campanha({
                 <Barra parte={campanha.pedidos_pagos} total={campanha.pedidos} />
                 <p data-nums className="text-caption text-muted">
                   {campanha.alunos_com_pedido}{" "}
-                  {campanha.alunos_com_pedido === 1 ? "aluno" : "alunos"} ·{" "}
-                  {produtos.reduce((n, p) => n + p.pecas, 0)} peças
+                  {campanha.alunos_com_pedido === 1 ? "Aluno" : "Alunos"} ·{" "}
+                  {produtos.reduce((n, p) => n + p.pecas, 0)} Peças
                 </p>
               </div>
             </Bloco>
@@ -832,6 +867,16 @@ export default async function Campanha({
           labelGrupoPlural={campanha.label_grupo_plural}
           turmas={gruposNaProducao}
           fechar={fechar}
+        />
+      )}
+
+      {detalhe && (
+        <DetalhePedido
+          pedido={detalhe}
+          turma={grupos.find((g) => g.id === detalhe.grupo_id)?.nome ?? ""}
+          campanha={campanha.nome}
+          labelGrupo={campanha.label_grupo}
+          fechar={`${base}?aba=financeiro`}
         />
       )}
 

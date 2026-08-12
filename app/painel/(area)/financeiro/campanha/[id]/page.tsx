@@ -7,12 +7,13 @@ import {
   COBRANCA,
   PERIODO_PADRAO,
   aVencer,
+  ehData,
   ehFaixa,
   ehGrupoCobranca,
-  ehPeriodo,
   filas,
   foraDoPrazo,
   janela,
+  janelaEntre,
   listarContasReceber,
   listarMovimento,
   listarRecebimentos,
@@ -22,7 +23,6 @@ import {
   serie,
   somarMovimento,
   type Faixa,
-  type Periodo,
 } from "@/lib/financeiro";
 import { Barra, Bloco, Retratil, SubAbas, Topo, Valor } from "@/components/painel";
 import { Curvas, Entradas, FaixasAtraso, Modos, Ranking } from "@/components/financeiro";
@@ -50,7 +50,8 @@ type Aba = "geral" | "receber" | "entradas" | "turmas";
 
 type Query = {
   aba?: string;
-  periodo?: string;
+  de?: string;
+  ate?: string;
   turma?: string;
   modo?: string;
   faixa?: string;
@@ -74,11 +75,22 @@ export default async function FinanceiroDaCampanha({
   searchParams: Promise<Query>;
 }) {
   const { id } = await params;
-  const { aba: a, periodo: p, turma, modo: m, faixa: f, q, pedido: pedidoId, filtros } =
-    await searchParams;
+  const {
+    aba: a,
+    de: deQuery,
+    ate: ateQuery,
+    turma,
+    modo: m,
+    faixa: f,
+    q,
+    pedido: pedidoId,
+    filtros,
+  } = await searchParams;
 
   const aba: Aba = ABAS.some((x) => x.valor === a) ? (a as Aba) : "geral";
-  const periodo: Periodo = ehPeriodo(p) ? p : PERIODO_PADRAO;
+  const de = ehData(deQuery) ? deQuery : undefined;
+  const ate = ehData(ateQuery) ? ateQuery : undefined;
+  const intervalo = !!(de && ate);
   const modo = m === "tudo" || ehGrupoCobranca(m) ? m : "tudo";
   const faixa: Faixa | undefined = ehFaixa(f) ? f : undefined;
 
@@ -93,7 +105,7 @@ export default async function FinanceiroDaCampanha({
   ]);
 
   const hoje = hojeNoFuso();
-  const j = janela(periodo, hoje);
+  const j = intervalo ? janelaEntre(de!, ate!) : janela(PERIODO_PADRAO, hoje);
 
   const carteira = posicao(movimento, contas);
   const [atrasado, semPagamento] = filas(contas);
@@ -104,10 +116,19 @@ export default async function FinanceiroDaCampanha({
   const base = `/painel/financeiro/campanha/${id}`;
   const url = (extra: Partial<Query>) => {
     const s = new URLSearchParams();
-    const campos = { aba: aba === "geral" ? undefined : aba, periodo, turma, modo, faixa, q, filtros, ...extra };
+    const campos = {
+      aba: aba === "geral" ? undefined : aba,
+      de,
+      ate,
+      turma,
+      modo,
+      faixa,
+      q,
+      filtros,
+      ...extra,
+    };
     for (const [k, v] of Object.entries(campos)) {
       if (!v) continue;
-      if (k === "periodo" && v === PERIODO_PADRAO) continue;
       if (k === "modo" && v === "tudo") continue;
       s.set(k, String(v));
     }
@@ -116,7 +137,7 @@ export default async function FinanceiroDaCampanha({
   };
 
   const escondidos = Object.fromEntries(
-    Object.entries({ aba, periodo, turma, modo, faixa }).filter(([, v]) => v),
+    Object.entries({ aba, de, ate, turma, modo, faixa }).filter(([, v]) => v),
   ) as Record<string, string>;
 
   // A tabela da aba A receber: modo, faixa e busca aplicados na ordem.
@@ -143,7 +164,7 @@ export default async function FinanceiroDaCampanha({
   const detalhe = aberto && contas.some((c) => c.pedido_id === aberto.id) ? aberto : null;
   const contaDoDetalhe = contas.find((c) => c.pedido_id === detalhe?.id);
 
-  const ativos = [turma, periodo !== PERIODO_PADRAO ? periodo : undefined].filter(Boolean).length;
+  const ativos = [turma, intervalo ? "1" : undefined].filter(Boolean).length;
   const turmaAberta = grupos.find((g) => g.id === turma);
 
   return (
@@ -393,12 +414,14 @@ export default async function FinanceiroDaCampanha({
       {filtros === "1" && (
         <FiltroGaveta
           fechar={url({ filtros: undefined })}
-          periodo={periodo}
-          clientes={[]}
-          campanhas={[]}
-          turmas={grupos.map((g) => ({ id: g.id, nome: g.nome }))}
-          escolhido={{ turma }}
-          url={(extra) => url({ ...extra, filtros: "1" })}
+          de={de}
+          ate={ate}
+          // Sem `de` e `ate`: quem manda neles é o próprio formulário.
+          ocultos={
+            Object.fromEntries(
+              Object.entries({ aba, turma, modo, faixa, q }).filter(([, v]) => v),
+            ) as Record<string, string>
+          }
         />
       )}
 

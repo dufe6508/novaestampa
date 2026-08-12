@@ -47,7 +47,6 @@ declare
 
   v_camiseta uuid;
   v_moletom  uuid;
-  v_kit      uuid;
 
   v_grupo_id uuid;
   v_pedido_id uuid;
@@ -78,23 +77,15 @@ begin
     from campanha where id = p_campanha_id;
 
   -- Produtos da campanha (produto pertence à campanha, nunca é catálogo global)
-  insert into produto (campanha_id, nome, descricao, tipo, preco_centavos, tamanhos, max_caracteres_nome, ordem)
+  insert into produto (campanha_id, nome, descricao, preco_centavos, tamanhos, max_caracteres_nome, ordem)
   values (p_campanha_id, 'Camiseta de Formatura', 'Malha penteada 30.1, estampa frente e costas, nome nas costas',
-          'simples', 8990, array['PP','P','M','G','GG','XG'], 18, 1)
+          8990, array['PP','P','M','G','GG','XG'], 18, 1)
   returning id into v_camiseta;
 
-  insert into produto (campanha_id, nome, descricao, tipo, preco_centavos, tamanhos, max_caracteres_nome, ordem)
+  insert into produto (campanha_id, nome, descricao, preco_centavos, tamanhos, max_caracteres_nome, ordem)
   values (p_campanha_id, 'Moletom Canguru', 'Moletom flanelado com capuz e bolso, nome bordado no peito',
-          'simples', 15990, array['P','M','G','GG','XG'], 18, 2)
+          15990, array['P','M','G','GG','XG'], 18, 2)
   returning id into v_moletom;
-
-  insert into produto (campanha_id, nome, descricao, tipo, preco_centavos, tamanhos, max_caracteres_nome, ordem)
-  values (p_campanha_id, 'Kit Formatura (Camiseta + Moletom)', 'Os dois produtos com desconto',
-          'kit', 21990, '{}', 18, 3)
-  returning id into v_kit;
-
-  insert into produto_componente (kit_id, componente_id, quantidade, ordem)
-  values (v_kit, v_camiseta, 1, 1), (v_kit, v_moletom, 1, 2);
 
   -- Grupos
   foreach g in array p_grupos loop
@@ -122,10 +113,8 @@ begin
       -- 18% dos alunos fazem mais de um pedido (ex.: camiseta e moletom separados)
       for j in 1..(case when random() < 0.18 then 2 else 1 end) loop
         v_sorte := random();
-        if v_sorte < 0.55 then
+        if v_sorte < 0.70 then
           v_produto := v_camiseta;
-        elsif v_sorte < 0.78 then
-          v_produto := v_kit;
         else
           v_produto := v_moletom;
         end if;
@@ -144,21 +133,12 @@ begin
                 v_pnome, v_preco, v_criado, v_criado)
         returning id into v_pedido_id;
 
-        -- Itens: kit gera uma peça por componente; produto simples gera uma.
-        if v_produto = v_kit then
-          insert into pedido_item (pedido_id, produto_id, produto_nome_snapshot, tamanho, nome_estampa, criado_em)
-          select v_pedido_id, pc.componente_id, pr.nome,
-                 pr.tamanhos[1 + floor(random()*cardinality(pr.tamanhos))::int],
-                 v_estampa, v_criado
-          from produto_componente pc join produto pr on pr.id = pc.componente_id
-          where pc.kit_id = v_kit;
-        else
-          insert into pedido_item (pedido_id, produto_id, produto_nome_snapshot, tamanho, nome_estampa, criado_em)
-          select v_pedido_id, pr.id, pr.nome,
-                 pr.tamanhos[1 + floor(random()*cardinality(pr.tamanhos))::int],
-                 v_estampa, v_criado
-          from produto pr where pr.id = v_produto;
-        end if;
+        -- Item: um pedido, um produto, uma peça.
+        insert into pedido_item (pedido_id, produto_id, produto_nome_snapshot, tamanho, nome_estampa, criado_em)
+        select v_pedido_id, pr.id, pr.nome,
+               pr.tamanhos[1 + floor(random()*cardinality(pr.tamanhos))::int],
+               v_estampa, v_criado
+        from produto pr where pr.id = v_produto;
 
         -- Parcelas 50/50
         insert into parcela (pedido_id, numero, valor_centavos, vencimento, eh_entrada)

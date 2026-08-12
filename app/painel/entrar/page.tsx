@@ -104,13 +104,6 @@ export default async function EntrarNaEmpresa() {
         )}
       </div>
 
-      <p
-        className="entra text-caption leading-relaxed text-muted"
-        style={{ "--atraso": "120ms" } as React.CSSProperties}
-      >
-        Errar o código não diz nada além de que ele está errado, e nenhum dado da empresa
-        aparece antes de acertar.
-      </p>
     </main>
   );
 }

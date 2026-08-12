@@ -33,7 +33,6 @@ export type Produto = {
   campanha_id: string;
   nome: string;
   descricao: string | null;
-  tipo: "simples" | "kit";
   preco_centavos: number;
   tamanhos: string[];
   max_caracteres_nome: number;
@@ -49,14 +48,6 @@ export type Produto = {
   /** Quando existem, mandam mais que os prazos da campanha. */
   prazo_pedidos: string | null;
   prazo_alteracoes: string | null;
-};
-
-export type Peca = {
-  componente_id: string;
-  componente_nome: string;
-  componente_tamanhos: string[];
-  quantidade: number;
-  ordem: number;
 };
 
 export type Item = {
@@ -134,17 +125,6 @@ export const buscarProduto = emCache("produto", async (campanhaId: string, id: s
     .eq("id", id)
     .maybeSingle<Produto>();
   return data ?? null;
-});
-
-/** Peças de um kit, na ordem de exibição. Produto simples devolve lista vazia. */
-export const listarPecas = emCache("kit", async (kitId: string): Promise<Peca[]> => {
-  const { data } = await publico()
-    .from("vw_kit_publico")
-    .select("*")
-    .eq("kit_id", kitId)
-    .order("ordem")
-    .returns<Peca[]>();
-  return data ?? [];
 });
 
 export const meusPedidos = cache(

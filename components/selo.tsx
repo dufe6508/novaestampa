@@ -1,50 +1,40 @@
 import type { Pedido } from "@/lib/aluno";
 
 /**
- * Selo de status.
+ * Status, sem pílula.
  *
- * Chip de fundo tom sobre tom, sem bolinha. A versão com ponto colorido caiu:
- * numa tabela densa o ponto vira uma coluna de confete que não se lê de relance,
- * e o texto ao lado dele ficava do mesmo peso do resto da linha.
+ * O chip de fundo tom sobre tom caiu. Numa lista de duzentas linhas ele produzia
+ * uma coluna de retângulos coloridos que competia com o nome e com o dinheiro,
+ * que são os dois dados pelos quais alguém abre a tela. Área de cor pesa muito
+ * para o que é qualificação, não medida.
  *
- * O que informa aqui é a área de cor, não um pixel. O fundo é a versão `soft` do
- * token de estado, que é clara o bastante para não competir com o dinheiro
- * vencido em vermelho cheio, e o texto vai na cor forte do mesmo par, o que
- * garante o contraste.
+ * O que ficou: um ponto de 5px e a palavra, na altura da linha. O ponto dá a
+ * leitura periférica ("tem vermelho nesta lista"), a palavra dá a informação, e
+ * nenhum dos dois adiciona caixa, borda ou fundo.
  *
  * Cor nunca informa sozinha: quem não distingue verde de vermelho lê "Em atraso"
- * do mesmo jeito.
+ * do mesmo jeito. E só o estado que exige ação hoje tinge o texto; o resto fica
+ * em `ink-2`, para o vermelho continuar valendo alguma coisa.
  */
 
 const TONS = {
-  neutro: "bg-surface-2 text-ink-2",
-  ok: "bg-success-soft text-success",
-  atencao: "bg-warning-soft text-warning",
-  ruim: "bg-danger-soft text-danger",
+  neutro: { ponto: "bg-faint", texto: "text-muted" },
+  ok: { ponto: "bg-success", texto: "text-ink-2" },
+  atencao: { ponto: "bg-warning", texto: "text-ink-2" },
+  ruim: { ponto: "bg-danger", texto: "text-danger" },
 } as const;
 
 type Tom = keyof typeof TONS;
 
-/**
- * A caixa do chip.
- *
- * Três acertos de forma, todos por causa da lista longa. O canto era `rounded-sm`,
- * quase reto, e num retângulo de 60px de largura isso lê como recorte, não como
- * peça; `rounded-md` dá o mesmo canto dos botões e campos ao lado. O aro interno
- * de 1px na própria cor do texto desenha a borda do chip contra fundos claros
- * parecidos: sem ele, o `neutro` sobre `surface-2` some, e o selo vira uma mancha
- * sem contorno. E a caixa alta de rótulo saiu do texto: "Quitado" é palavra que
- * se lê, não etiqueta de coluna.
- *
- * Continua sem pílula e sem bolinha, que é a decisão de CLAUDE.md §5.1.2.
- */
 function Base({ tom, children }: { tom: Tom; children: React.ReactNode }) {
+  const { ponto, texto } = TONS[tom];
+
   return (
     <span
-      className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-md px-1.5
-        py-[1px] text-[11px] font-semibold leading-[1.5] ring-1 ring-inset ring-current/15
-        ${TONS[tom]}`}
+      className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-caption
+        font-medium leading-[1.5] ${texto}`}
     >
+      <span aria-hidden="true" className={`size-[5px] shrink-0 rounded-full ${ponto}`} />
       {children}
     </span>
   );

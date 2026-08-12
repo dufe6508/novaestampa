@@ -429,7 +429,7 @@ export function Retratil({
  *
  * É a pergunta que ninguém conseguia responder sem abrir turma por turma:
  * quantas camisas e quantos moletons a campanha vendeu. Peça e pedido são
- * contagens diferentes de propósito, kit e quantidade maior que um fazem os
+ * contagens diferentes de propósito, quantidade maior que um faz os
  * dois números se descolarem, e quem vai comprar tecido precisa do de peças.
  */
 export function ResumoProdutos({ linhas }: { linhas: ResumoProduto[] }) {
@@ -440,7 +440,7 @@ export function ResumoProdutos({ linhas }: { linhas: ResumoProduto[] }) {
         <span className="text-left">Produto</span>
         <span>Peças</span>
         <span>Quitados</span>
-        <span>Em Aberto</span>
+        <span>Em aberto</span>
       </div>
       <ul className="divide-y divide-line">
         {linhas.map((l) => (
@@ -459,7 +459,7 @@ export function ResumoProdutos({ linhas }: { linhas: ResumoProduto[] }) {
             <div className="text-right md:text-center">
               <span className="label block text-muted md:hidden">Quitados</span>
               <span data-nums className="text-body-sm font-semibold text-ink">
-                {l.pagos} De {l.pedidos}
+                {l.pagos} de {l.pedidos}
               </span>
               {" "}
               <span data-nums className="text-caption text-muted">

@@ -6,7 +6,7 @@ export { reais } from "./formato";
 /**
  * Dois clientes, dois níveis de acesso.
  *
- * O aluno lê por views (`vw_turma_publica`, `vw_produto_publico`, `vw_kit_publico`)
+ * O aluno lê por views (`vw_turma_publica`, `vw_produto_publico`)
  * e escreve pelas funções `aluno_*`, que validam o dono do pedido antes de gravar.
  * Esse desenho continua valendo e é o que a auth definitiva vai aproveitar.
  *

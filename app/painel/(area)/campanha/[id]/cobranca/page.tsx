@@ -118,7 +118,7 @@ export default async function Cobranca({
             rotulo="Falta receber"
             valor={reais(total)}
             tom={situacao === "atrasado" && total > 0 ? "alerta" : "normal"}
-            nota={g ? "nesta turma" : "nesta fila"}
+            nota={g ? "Nesta turma" : "Nesta fila"}
           />
           <Kpi
             rotulo="Pedidos"
@@ -128,7 +128,7 @@ export default async function Cobranca({
           <Kpi
             rotulo="Média por pedido"
             valor={reais(lista.length ? Math.round(total / lista.length) : 0)}
-            nota="saldo em aberto"
+            nota="Saldo em aberto"
           />
           <Kpi
             rotulo={campanha.label_grupo_plural}

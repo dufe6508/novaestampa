@@ -76,7 +76,7 @@ export default async function Gestao({
                 ? `${grupo.pedidos_atrasados} ${
                     grupo.pedidos_atrasados === 1 ? "Pedido vencido" : "Pedidos vencidos"
                   }`
-                : "nada vencido"
+                : "Nada vencido"
             }
           />
         </Kpis>

@@ -11,25 +11,44 @@ import {
   listarMovimento,
   posicao,
 } from "@/lib/financeiro";
-import { Bloco, Valor } from "./painel";
+import { Bloco, Retratil, Valor } from "./painel";
 import { Entradas, Modos } from "./financeiro";
 
 /**
- * Aba Financeiro da turma. Escopo da turma e nada mais.
+ * Financeiro de um escopo fechado: uma turma ou uma campanha inteira.
+ *
+ * Nasceu como aba da turma e virou dois usos com o mesmo desenho, porque a
+ * pergunta é a mesma em ambos os níveis: quanto entrou, quanto falta, quem está
+ * vencido, e quais parcelas estão em aberto. O que muda é a coluna que filtra no
+ * banco, e isso `listarContasReceber` já resolve.
  *
  * A unidade da tabela é a parcela, igual à tela de contas a receber, sem as
- * colunas de escola e campanha, que aqui são constantes. Turma quitada mostra
- * estado próprio, não uma tabela vazia: é o que a representante quer ver.
+ * colunas que aqui são constantes. Escopo quitado mostra estado próprio, não uma
+ * tabela vazia.
+ *
+ * As parcelas em aberto ficam num bloco retrátil, fechado. Numa campanha elas
+ * passam de duzentas linhas, e a página inteira virava a tabela; fechado, o
+ * resumo já responde quantas são, quanto valem e quanto está vencido, que é o
+ * que decide se vale abrir.
  */
 
 const TH = "label px-4 py-2.5 text-muted";
 const TD = "px-4 py-2.5";
 
-export async function FinanceiroDaTurma({ grupoId, url }: { grupoId: string; url: (extra: { pedido?: string }) => string }) {
+export async function FinanceiroDoEscopo({
+  campanhaId,
+  grupoId,
+  url,
+}: {
+  /** Um dos dois. Turma manda quando os dois vierem, é o escopo mais estreito. */
+  campanhaId?: string;
+  grupoId?: string;
+  url: (extra: { pedido?: string }) => string;
+}) {
   const [contas, movimento, entradas] = await Promise.all([
-    listarContasReceber(undefined, undefined, grupoId),
-    listarMovimento(undefined, undefined, grupoId),
-    listarUltimasEntradas(undefined, undefined, grupoId),
+    listarContasReceber(undefined, campanhaId, grupoId),
+    listarMovimento(undefined, campanhaId, grupoId),
+    listarUltimasEntradas(undefined, campanhaId, grupoId),
   ]);
 
   const carteira = posicao(movimento, contas);
@@ -46,28 +65,37 @@ export async function FinanceiroDaTurma({ grupoId, url }: { grupoId: string; url
   const devendo = new Set(emAberto.map((c) => c.aluno_nome));
   const vencido = foraDoPrazo(contas).reduce((t, c) => t + c.saldo_centavos, 0);
 
+  // O escopo viaja nos links de saída, para a lista e o CSV abrirem no mesmo
+  // corte que a tela está mostrando.
+  const escopo = grupoId ? `turma=${grupoId}` : `campanha=${campanhaId}`;
+  const turmasComPedido = new Set(contas.map((c) => c.grupo_id)).size;
+
   return (
     <div className="flex flex-col gap-3">
       <section
         className="entra grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
-        aria-label="Posição da turma, hoje"
+        aria-label="Posição de hoje"
       >
         {[
-          { rotulo: "Vendido", valor: carteira.vendido, nota: `${carteira.pedidos} pedidos` },
+          {
+            rotulo: "Vendido",
+            valor: carteira.vendido,
+            nota: `${carteira.pedidos} ${carteira.pedidos === 1 ? "Pedido" : "Pedidos"}`,
+          },
           {
             rotulo: "Recebido",
             valor: carteira.recebido,
-            nota: `${carteira.arrecadado}% do vendido`,
+            nota: `${carteira.arrecadado}% Do vendido`,
           },
           {
             rotulo: "A receber",
             valor: carteira.aReceber,
-            nota: `${reais(proximos7.valor_centavos)} vence em 7 dias`,
+            nota: `${reais(proximos7.valor_centavos)} Vence em 7 dias`,
           },
           {
             rotulo: "Fora do prazo",
             valor: vencido,
-            nota: `${devendo.size} de ${alunos.size} alunos devendo`,
+            nota: `${devendo.size} de ${alunos.size} ${alunos.size === 1 ? "Aluno devendo" : "Alunos devendo"}`,
             alerta: true,
           },
         ].map((k) => (
@@ -92,7 +120,7 @@ export async function FinanceiroDaTurma({ grupoId, url }: { grupoId: string; url
             .filter((f) => f.valor > 0)
             .map((f) => ({
               texto: COBRANCA[f.grupo].titulo,
-              href: `/painel/financeiro/receber?modo=${f.grupo}&turma=${grupoId}`,
+              href: `/painel/financeiro/receber?modo=${f.grupo}&${escopo}`,
               ativo: false,
               centavos: f.valor,
               pedidos: f.pedidos,
@@ -100,12 +128,21 @@ export async function FinanceiroDaTurma({ grupoId, url }: { grupoId: string; url
         />
       )}
 
-      <Bloco titulo="Parcelas em aberto">
+      <Retratil
+        titulo="Parcelas em aberto"
+        resumo={
+          emAberto.length === 0
+            ? "Nada em aberto"
+            : `${emAberto.length} ${emAberto.length === 1 ? "Parcela" : "Parcelas"} · ${reais(
+                carteira.aReceber,
+              )}${vencido > 0 ? ` · ${reais(vencido)} Fora do prazo` : ""}`
+        }
+      >
         {emAberto.length === 0 ? (
           <p className="px-4 py-10 text-center text-body-sm text-muted">
             {alunos.size === 0
-              ? "Nenhum pedido nesta turma ainda."
-              : `As ${alunos.size} pessoas desta turma estão quitadas.`}
+              ? "Nenhum pedido neste escopo ainda."
+              : `As ${alunos.size} pessoas deste escopo estão quitadas.`}
           </p>
         ) : (
           <>
@@ -114,10 +151,10 @@ export async function FinanceiroDaTurma({ grupoId, url }: { grupoId: string; url
                 <thead>
                   <tr className="border-b border-line bg-surface-2">
                     <th className={`${TH} text-left`}>Aluno</th>
+                    {!grupoId && <th className={`${TH} text-left`}>Turma</th>}
                     <th className={`${TH} text-left`}>Produto</th>
                     <th className={`${TH} text-center`}>Parcela</th>
                     <th className={`${TH} text-right`}>Valor</th>
-                    <th className={`${TH} text-right`}>Pago</th>
                     <th className={`${TH} text-right`}>Falta</th>
                     <th className={`${TH} text-center`}>Vencimento</th>
                     <th className={`${TH} text-center`}>Atraso</th>
@@ -139,6 +176,7 @@ export async function FinanceiroDaTurma({ grupoId, url }: { grupoId: string; url
                           {c.aluno_nome}
                         </Link>
                       </td>
+                      {!grupoId && <td className={`${TD} text-ink-2`}>{c.grupo_nome}</td>}
                       <td className={`${TD} text-ink-2`}>{c.produto}</td>
                       <td data-nums className={`${TD} text-center text-ink-2`}>
                         {c.numero}
@@ -148,9 +186,6 @@ export async function FinanceiroDaTurma({ grupoId, url }: { grupoId: string; url
                       </td>
                       <td className={`${TD} text-right`}>
                         <Valor centavos={c.valor_centavos} />
-                      </td>
-                      <td className={`${TD} text-right`}>
-                        <Valor centavos={c.pago_centavos} />
                       </td>
                       <td className={`${TD} text-right`}>
                         <Valor
@@ -163,9 +198,9 @@ export async function FinanceiroDaTurma({ grupoId, url }: { grupoId: string; url
                       </td>
                       <td data-nums className={`${TD} text-center`}>
                         {c.dias_atraso ? (
-                          <span className="font-medium text-danger">{c.dias_atraso} d</span>
+                          <span className="font-medium text-danger">{c.dias_atraso} D</span>
                         ) : (
-                          <span className="text-faint">no prazo</span>
+                          <span className="text-faint">No prazo</span>
                         )}
                       </td>
                     </tr>
@@ -173,7 +208,10 @@ export async function FinanceiroDaTurma({ grupoId, url }: { grupoId: string; url
                 </tbody>
                 <tfoot>
                   <tr className="border-t border-line-strong bg-surface-2">
-                    <td colSpan={5} className={`${TD} text-caption font-semibold text-ink-2`}>
+                    <td
+                      colSpan={grupoId ? 4 : 5}
+                      className={`${TD} text-caption font-semibold text-ink-2`}
+                    >
                       {emAberto.length}{" "}
                       {emAberto.length === 1 ? "Parcela em aberto" : "Parcelas em aberto"}
                     </td>
@@ -203,7 +241,8 @@ export async function FinanceiroDaTurma({ grupoId, url }: { grupoId: string; url
                     </span>
                     <span className="flex items-baseline justify-between gap-3 text-caption">
                       <span className="min-w-0 truncate text-muted">
-                        {c.produto} · parcela {c.numero}
+                        {!grupoId && `${c.grupo_nome} · `}
+                        {c.produto} · Parcela {c.numero}
                       </span>
                       <span data-nums className="shrink-0">
                         {c.dias_atraso ? (
@@ -219,7 +258,7 @@ export async function FinanceiroDaTurma({ grupoId, url }: { grupoId: string; url
             </ul>
           </>
         )}
-      </Bloco>
+      </Retratil>
 
       <div className="grid gap-3 lg:grid-cols-2">
         <Bloco titulo="Últimas entradas">
@@ -228,11 +267,11 @@ export async function FinanceiroDaTurma({ grupoId, url }: { grupoId: string; url
         <Bloco titulo="Exportar">
           <div className="flex flex-col gap-3 px-4 py-4">
             <p className="text-body-sm text-muted">
-              Uma linha por parcela, com aluno, valor, vencimento e atraso. Respeita o escopo
-              desta turma.
+              Uma linha por parcela, com aluno, valor, vencimento e atraso.
+              {!grupoId && turmasComPedido > 1 && ` Inclui as ${turmasComPedido} turmas com pedido.`}
             </p>
             <a
-              href={`/painel/financeiro/receber/csv?modo=tudo&turma=${grupoId}`}
+              href={`/painel/financeiro/receber/csv?modo=tudo&${escopo}`}
               className="inline-flex h-10 w-fit items-center rounded-md border border-line-strong
                 bg-surface px-3.5 text-body-sm font-medium text-ink-2 transition-colors
                 duration-fast ease-soft hover:border-ink hover:text-ink"

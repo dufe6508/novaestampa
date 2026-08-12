@@ -23,7 +23,7 @@ import { ExportarGaveta } from "./exportar-gaveta";
 import { Pacote } from "./icones";
 import { Vazio } from "./campos";
 import { SeloPagamento } from "./selo";
-import { FinanceiroDaTurma } from "./financeiro-turma";
+import { FinanceiroDoEscopo } from "./financeiro-escopo";
 
 /**
  * A lista da turma. Duas abas, e elas não são a mesma lista com um filtro.
@@ -32,8 +32,8 @@ import { FinanceiroDaTurma } from "./financeiro-turma";
  *   deve, quem está vencido. Quem pediu duas blusas aparece duas vezes, porque
  *   são duas cobranças.
  * · Produção, uma linha por peça física. É a visão da oficina, e é a que
- *   exporta. Kit vira duas linhas, e o mesmo aluno com dois pedidos vira duas
- *   linhas, que é exatamente o que a produção precisa cortar.
+ *   exporta. O mesmo aluno com dois pedidos vira duas linhas, que é
+ *   exatamente o que a produção precisa cortar.
  *
  * Denso de propósito. Quem abre isso está conferindo nome por nome contra o
  * que tem no papel, e cada linha alta a mais é um nome a menos na tela.
@@ -80,26 +80,22 @@ const TH_E = `${TH_BASE} text-left`;
 const TH_C = `${TH_BASE} text-center`;
 const TH_D = `${TH_BASE} text-right`;
 
-const TD_BASE = "px-3 py-2.5 align-middle";
+const TD_BASE = "px-3 py-2 align-middle";
 const TD_E = `${TD_BASE} text-left`;
 const TD_C = `${TD_BASE} text-center`;
 const TD_D = `${TD_BASE} text-right`;
 
 /**
- * O status do pedido é o chip do resto do painel (`SeloPagamento`), não mais um
- * traço colorido colado na borda esquerda da linha.
+ * O status é o mesmo `SeloPagamento` do resto do sistema: ponto de cor e
+ * palavra, sem caixa. Ele fica ao lado do nome, não embaixo, porque qualifica a
+ * pessoa e porque empilhado dobrava a altura de cada linha.
  *
- * O traço era decoração com pretensão de dado: fininho, sem texto, encostado no
- * canto onde ninguém procura informação, e em lista longa virava uma coluna de
- * riscos que não se lê. Pior, duplicava o que a legenda cinza embaixo do nome já
- * dizia, com uma escala de cor própria (verde, âmbar, vermelho, cinza) que não
- * era a de nenhum outro lugar do sistema.
- *
- * O chip tom sobre tom já é a decisão travada em CLAUDE.md §5.1.2, e traz junto
- * o texto, que é o que sobrevive a quem não distingue as cores.
+ * A coluna Pago saiu. Valor menos falta pagar é a mesma informação dita duas
+ * vezes, e as três colunas de dinheiro empurravam nome, produto e tamanho para
+ * um terço da largura da tabela.
  */
 
-/** Tamanhos de um pedido. Kit tem mais de uma peça, e cada uma conta. */
+/** Tamanhos de um pedido. Cada peça conta, quando há mais de uma. */
 function tamanhos(pedido: PedidoPainel) {
   return pedido.itens.map((i) => tamanhoLegivel(i.tamanho)).join(" + ");
 }
@@ -218,7 +214,7 @@ export async function PlanilhaTurma({
       <Abas
         atraso={40}
         opcoes={abas}
-        acao={<Busca valor={q} placeholder="Buscar Aluno" escondidos={{ aba }} />}
+        acao={<Busca valor={q} placeholder="Buscar aluno" escondidos={{ aba }} />}
       />
 
       {produtos.length > 1 && !noFinanceiro && (
@@ -279,8 +275,8 @@ export async function PlanilhaTurma({
       */}
       {!naProducao && !noFinanceiro && lista.length > 0 && (
         <Retratil
-          titulo="Por Produto"
-          resumo={`${lista.length} ${lista.length === 1 ? "Pedido" : "Pedidos"} Nesta Lista`}
+          titulo="Por produto"
+          resumo={`${lista.length} ${lista.length === 1 ? "Pedido" : "Pedidos"} nesta lista`}
           atraso={110}
         >
           <ResumoProdutos linhas={resumoPorProduto(lista)} />
@@ -288,7 +284,7 @@ export async function PlanilhaTurma({
       )}
 
       {noFinanceiro ? (
-        <FinanceiroDaTurma grupoId={grupo.id} url={url} />
+        <FinanceiroDoEscopo grupoId={grupo.id} url={url} />
       ) : naProducao ? (
         <Producao
           pecas={pecas}
@@ -335,15 +331,14 @@ export async function PlanilhaTurma({
                 carrega texto (aluno, produto, tamanho) ganhou espaço, e as de
                 dinheiro só precisam caber "R$ 159,90".
               */}
-              <table className="w-full min-w-[880px] table-fixed border-collapse text-body-sm">
+              <table className="w-full min-w-[760px] table-fixed border-collapse text-body-sm">
                 <colgroup>
-                  <col className="w-[27%]" />
-                  <col className="w-[18%]" />
-                  <col className="w-[13%]" />
-                  <col className="w-[11%]" />
-                  <col className="w-[11%]" />
+                  <col className="w-[31%]" />
+                  <col className="w-[20%]" />
                   <col className="w-[12%]" />
-                  <col className="w-[8%]" />
+                  <col className="w-[13%]" />
+                  <col className="w-[15%]" />
+                  <col className="w-[9%]" />
                 </colgroup>
                 <thead>
                   <tr className="border-b border-line bg-surface-2">
@@ -351,7 +346,6 @@ export async function PlanilhaTurma({
                     <th className={TH_E}>Produto</th>
                     <th className={TH_E}>Tam.</th>
                     <th className={TH_D}>Valor</th>
-                    <th className={TH_D}>Pago</th>
                     <th className={TH_D}>Falta pagar</th>
                     <th className={TH_D}>Feito</th>
                   </tr>
@@ -392,9 +386,6 @@ export async function PlanilhaTurma({
                           <Valor centavos={p.valor_centavos} />
                         </td>
                         <td className={TD_D}>
-                          <Valor centavos={p.pago_centavos} />
-                        </td>
-                        <td className={TD_D}>
                           <Valor
                             centavos={p.saldo_centavos}
                             tom={p.status_pagamento === "atrasado" ? "alerta" : "forte"}
@@ -414,9 +405,6 @@ export async function PlanilhaTurma({
                     </td>
                     <td className={TD_D}>
                       <Valor centavos={total.vendido} tom="forte" />
-                    </td>
-                    <td className={TD_D}>
-                      <Valor centavos={total.recebido} tom="forte" />
                     </td>
                     <td className={TD_D}>
                       <Valor
@@ -446,11 +434,11 @@ export async function PlanilhaTurma({
                   className="flex flex-col gap-1 px-4 py-3 transition-colors duration-fast
                     ease-soft active:bg-surface-2"
                 >
-                  {/* Nome e situação em cima, dinheiro embaixo.
-                      O selo qualifica a pessoa, então anda com o nome; o pago e
-                      o total são um número só, e ficam juntos numa linha que se
-                      lê de uma vez: "60,00 de 60,00". Antes o "de R$ 60,00"
-                      dividia espaço com o selo e os dois se atrapalhavam. */}
+                  {/* Nome e situação em cima, dinheiro embaixo. O selo qualifica
+                      a pessoa, então anda com o nome. À direita fica o que falta
+                      pagar, que é o número pelo qual alguém abre esta lista; o
+                      pago saiu, porque total menos falta é a mesma informação
+                      dita duas vezes. */}
                   <div className="flex items-start justify-between gap-3">
                     <span className="min-w-0 truncate text-body-sm font-semibold">
                       {capitalizarNome(p.aluno_nome)}
@@ -465,14 +453,20 @@ export async function PlanilhaTurma({
                       data-nums
                       className="shrink-0 whitespace-nowrap text-caption text-muted"
                     >
-                      <strong
-                        className={`text-body-sm font-semibold ${
-                          p.status_pagamento === "atrasado" ? "text-danger" : "text-ink"
-                        }`}
-                      >
-                        {reais(p.pago_centavos)}
-                      </strong>{" "}
-                      De {reais(p.valor_centavos)}
+                      {p.saldo_centavos > 0 ? (
+                        <>
+                          Falta{" "}
+                          <strong
+                            className={`text-body-sm font-semibold ${
+                              p.status_pagamento === "atrasado" ? "text-danger" : "text-ink"
+                            }`}
+                          >
+                            {reais(p.saldo_centavos)}
+                          </strong>
+                        </>
+                      ) : (
+                        reais(p.valor_centavos)
+                      )}
                     </span>
                   </div>
                 </Link>
@@ -483,7 +477,8 @@ export async function PlanilhaTurma({
                 {lista.length} {lista.length === 1 ? "Pedido" : "Pedidos"}
               </span>
               <span className="text-caption text-muted">
-                Recebido <Valor centavos={total.recebido} tom="forte" /> De{" "}
+                Falta pagar{" "}
+                <Valor centavos={total.aReceber} tom={total.aReceber > 0 ? "alerta" : "forte"} /> De{" "}
                 <span data-nums>{reais(total.vendido)}</span>
               </span>
             </li>

@@ -1,40 +1,50 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import {
-  buscarProduto,
-  buscarTurma,
-  dia,
-  listarPecas,
-  podeComprar,
-  prazoDoProduto,
-} from "@/lib/aluno";
+import { buscarProduto, buscarTurma, dia, podeComprar, prazoDoProduto } from "@/lib/aluno";
 import { reais } from "@/lib/supabase";
-import { Alerta, BotaoLink } from "@/components/campos";
+import { Alerta, Botao, Tamanhos } from "@/components/campos";
 import { Galeria } from "@/components/galeria";
 import { Seta, Voltar } from "@/components/icones";
 
 /**
  * Produto · A4, primeira metade.
  *
- * Aqui o aluno decide SE quer. Tamanho e nome ficam juntos na tela seguinte,
- * que é a tela de personalização: assim existe um lugar só para onde o lápis
- * da revisão volta, em vez de espalhar a mesma decisão em duas telas.
+ * Aqui o aluno decide se quer **e em que tamanho**. O tamanho subiu da tela de
+ * personalização para cá: ele é parte de escolher a peça, aparece junto da foto
+ * e do preço, e a tela seguinte fica só com o nome, que é a decisão que precisa
+ * de conferência.
+ *
+ * O seletor é um `form` com `method="get"`: o navegador monta
+ * `/pedir/[id]/personalizar?t=M` sozinho, sem estado e sem JavaScript, e a tela
+ * de personalização já sabia ler `t` da URL, porque é assim que o lápis da
+ * revisão volta preenchido.
+ *
+ * Peça sem bordado pula a personalização inteira e vai direto para a revisão:
+ * não sobrou nada para ela perguntar.
  */
 
 export default async function Produto({
   params,
+  searchParams,
 }: {
   params: Promise<{ codigo: string; produtoId: string }>;
+  /** `t` e `n` chegam quando o aluno volta da revisão para trocar o tamanho. */
+  searchParams: Promise<{ t?: string; n?: string }>;
 }) {
   const { codigo, produtoId } = await params;
+  const { t, n } = await searchParams;
   const turma = await buscarTurma(codigo);
   if (!turma) notFound();
 
   const produto = await buscarProduto(turma.campanha_id, produtoId);
   if (!produto) notFound();
 
-  const pecas = produto.tipo === "kit" ? await listarPecas(produto.id) : [];
   const vendendo = podeComprar(turma, produto);
+  const tamanhoAtual = t && produto.tamanhos.includes(t) ? t : undefined;
+  // Sem nome bordado não há o que personalizar, então o passo do meio some.
+  const destino = produto.exige_nome
+    ? `/t/${turma.codigo}/pedir/${produto.id}/personalizar`
+    : `/t/${turma.codigo}/pedir/${produto.id}/revisao`;
   const prazos = prazoDoProduto(turma, produto);
   const entrada = Math.round((produto.preco_centavos * turma.percentual_entrada) / 100);
   const parcelaMinima = Math.round(
@@ -81,20 +91,6 @@ export default async function Produto({
             )}
           </div>
 
-          {produto.tipo === "kit" && pecas.length > 0 && (
-            <div className="rounded-lg border border-line bg-surface-2 px-4 py-3">
-              <p className="label mb-2 text-muted">O kit inclui</p>
-              <ul className="flex flex-col gap-1 text-body-sm text-ink-2">
-                {pecas.map((p) => (
-                  <li key={p.componente_id}>
-                    {p.quantidade > 1 && `${p.quantidade}× `}
-                    {p.componente_nome}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
           {!vendendo ? (
             <Alerta>
               {produto.situacao === "pausado"
@@ -104,18 +100,20 @@ export default async function Produto({
                   : "Esta campanha não está mais aceitando pedidos."}
             </Alerta>
           ) : (
-            // "Personalizar" e não "fazer pedido": o botão leva para escolher
-            // tamanho e nome, não fecha compra nenhuma. Prometer pedido aqui
-            // faria o aluno hesitar em clicar. Sem bordado a tela seguinte é só
-            // o tamanho, e o verbo muda junto.
-            <BotaoLink
-              href={`/t/${turma.codigo}/pedir/${produto.id}/personalizar`}
-              className="w-full"
-            >
-              {produto.exige_nome
-                ? `Personalizar meu ${produto.tipo === "kit" ? "kit" : "uniforme"}`
-                : "Escolher o tamanho"}
-            </BotaoLink>
+            <form action={destino} method="get" className="flex flex-col gap-5">
+              {/* O nome digitado volta junto quando o aluno vem da revisão só
+                  para trocar o tamanho. Sem isso ele redigitaria as duas vezes. */}
+              {/* Sem bordado, o nome vai vazio e é ele que a revisão grava. */}
+              {(produto.exige_nome ? n !== undefined : true) && (
+                <input type="hidden" name="n" value={produto.exige_nome ? n : ""} />
+              )}
+
+              <Tamanhos nome="t" opcoes={produto.tamanhos} padrao={tamanhoAtual} />
+
+              <Botao type="submit" className="w-full">
+                {produto.exige_nome ? "Personalizar" : "Continuar"}
+              </Botao>
+            </form>
           )}
 
           {/* Descrição recolhida: quem já decidiu não precisa ler, e quem quer

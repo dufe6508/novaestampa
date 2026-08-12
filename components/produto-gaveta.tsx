@@ -36,7 +36,15 @@ export function ProdutoGaveta({
   prazosDaCampanha: { pedidos: string | null; alteracoes: string | null };
 }) {
   const editando = !!produto;
-  const tamanhos = produto?.tamanhos ?? [];
+
+  /**
+   * Produto novo nasce com a grade inteira marcada, tradicional e baby look.
+   * O caso comum é vender tudo, e desmarcar o que não vai ter é menos trabalho
+   * do que marcar doze caixas uma a uma no celular. Ao editar, vale o que está
+   * gravado.
+   */
+  const tamanhos =
+    produto?.tamanhos ?? [...GRADE, ...GRADE.map((t) => `${PREFIXO_BABY_LOOK}${t}`)];
 
   // O preço já entra no campo com a máscara aplicada, para editar não mostrar
   // um formato diferente do que a digitação produz.

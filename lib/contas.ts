@@ -150,6 +150,31 @@ export function ehTudo(j: Janela) {
   return j.de === SEMPRE;
 }
 
+/** Data no formato do banco e do `input type="date"`. */
+export function ehData(v: string | undefined): v is string {
+  return !!v && /^\d{4}-\d{2}-\d{2}$/.test(v);
+}
+
+/**
+ * A janela de um intervalo escolhido à mão, que é o que o filtro do Financeiro
+ * pergunta hoje: data inicial e data final, em vez de uma lista de "há quanto
+ * tempo". A janela anterior tem a mesma duração e termina na véspera, para o
+ * delta continuar comparando períodos comparáveis.
+ *
+ * Datas invertidas são trocadas em vez de recusadas: quem digitou ao contrário
+ * quis o intervalo entre as duas.
+ */
+export function janelaEntre(de: string, ate: string): Janela {
+  const [inicio, fim] = de <= ate ? [de, ate] : [ate, de];
+  const dias = diasEntre(inicio, fim) + 1;
+
+  return {
+    de: inicio,
+    ate: fim,
+    anterior: { de: somarDias(inicio, -dias), ate: somarDias(inicio, -1) },
+  };
+}
+
 // ------------------------------------------------------------
 // Posição · a foto de hoje, sem período
 // ------------------------------------------------------------

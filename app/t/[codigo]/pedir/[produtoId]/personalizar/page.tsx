@@ -1,35 +1,34 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { buscarProduto, buscarTurma, listarPecas } from "@/lib/aluno";
+import { buscarProduto, buscarTurma, tamanhoLegivel } from "@/lib/aluno";
 import { sessao } from "@/lib/sessao";
 import { Voltar } from "@/components/icones";
 import { FormPersonalizar } from "./form-personalizar";
 
 /**
- * Personalização · A4, segunda metade. Tamanho e nome, numa tela só.
+ * Personalização · A4, segunda metade. Só o nome.
  *
- * Fora da casca de abas de propósito: quem está fechando um pedido não precisa
- * de quatro saídas na tela.
+ * O tamanho subiu para a tela do produto, junto da foto e do preço. Aqui ficou a
+ * única decisão que precisa de conferência letra por letra, e a tela encolheu
+ * para dois campos e o desenho da peça.
  *
- * Aceita `t` e `n` na URL para voltar preenchida. É o que faz o lápis da tela
- * de revisão funcionar sem o aluno redigitar tudo.
+ * `t` vem obrigatoriamente da URL, e `n` vem quando o aluno volta da revisão
+ * para corrigir a digitação. Tamanho fora da grade não entra: quem chega com
+ * lixo na URL volta para o produto e escolhe de novo.
+ *
+ * Produto sem bordado nem passa por aqui: o formulário do produto manda direto
+ * para a revisão.
  */
-
-/** String vazia é valor válido: é o nome de uma peça que sai sem bordado. */
-function lista(v: string | string[] | undefined): string[] {
-  if (v === undefined) return [];
-  return Array.isArray(v) ? v : [v];
-}
 
 export default async function Personalizar({
   params,
   searchParams,
 }: {
   params: Promise<{ codigo: string; produtoId: string }>;
-  searchParams: Promise<{ t?: string | string[]; n?: string | string[]; foco?: string }>;
+  searchParams: Promise<{ t?: string; n?: string }>;
 }) {
   const { codigo, produtoId } = await params;
-  const { t, n, foco } = await searchParams;
+  const { t, n } = await searchParams;
 
   const turma = await buscarTurma(codigo);
   if (!turma) notFound();
@@ -38,33 +37,18 @@ export default async function Personalizar({
   const produto = await buscarProduto(turma.campanha_id, produtoId);
   if (!produto) notFound();
 
-  const pecasKit = produto.tipo === "kit" ? await listarPecas(produto.id) : [];
+  const voltar = `/t/${turma.codigo}/loja/${produto.id}`;
 
-  // Uma entrada por peça física.
-  const modelo =
-    produto.tipo === "kit"
-      ? pecasKit.flatMap((p) =>
-          Array.from({ length: p.quantidade }, () => ({
-            produtoId: p.componente_id,
-            nome: p.componente_nome,
-            tamanhos: p.componente_tamanhos,
-          })),
-        )
-      : [{ produtoId: produto.id, nome: produto.nome, tamanhos: produto.tamanhos }];
-
-  // Só aceita o que veio da URL se bater com a grade real. Lixo na URL não
-  // pode virar pedido, e o servidor valida de novo na hora de gravar.
-  const tamanhos = lista(t);
-  const nomes = lista(n);
-  const prefill = modelo.map((m, i) => ({
-    tamanho: m.tamanhos.includes(tamanhos[i]) ? tamanhos[i] : undefined,
-    nome: nomes[i] ?? "",
-  }));
+  // Sem tamanho válido não há pedido a montar, e sem bordado não há o que
+  // perguntar: os dois casos voltam para a tela que resolve.
+  if (!t || !produto.tamanhos.includes(t) || !produto.exige_nome) {
+    redirect(`${voltar}${t ? `?t=${encodeURIComponent(t)}` : ""}`);
+  }
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-lg flex-col gap-6 px-4 pb-12 pt-6">
+    <main className="mx-auto flex min-h-dvh max-w-lg flex-col gap-5 px-4 pb-12 pt-6">
       <Link
-        href={`/t/${turma.codigo}/loja/${produto.id}`}
+        href={`${voltar}?t=${encodeURIComponent(t)}`}
         className="inline-flex w-fit items-center gap-1.5 text-caption font-semibold text-ink-2
           transition-colors duration-fast ease-soft hover:text-ink"
       >
@@ -72,23 +56,19 @@ export default async function Personalizar({
         Voltar
       </Link>
 
-      <header className="entra flex flex-col gap-1.5">
-        <h1>{produto.exige_nome ? "Tamanho e nome" : "Tamanho"}</h1>
-        <p className="text-body-sm leading-relaxed text-muted">
-          {produto.exige_nome
-            ? "O nome vai bordado na peça. Confira letra por letra, esta parte não tem conserto depois que a peça é produzida."
-            : "Esta peça sai sem nome bordado. Confira o tamanho, é o que não tem conserto depois de produzida."}
+      <header className="entra flex flex-col gap-1">
+        <h1>Nome da estampa</h1>
+        <p className="text-body-sm text-muted">
+          {produto.nome} · Tamanho {tamanhoLegivel(t)}
         </p>
       </header>
 
       <FormPersonalizar
         codigo={turma.codigo}
         produtoId={produto.id}
+        tamanho={t}
         maxCaracteres={produto.max_caracteres_nome}
-        exigeNome={produto.exige_nome}
-        pecas={modelo}
-        prefill={prefill}
-        foco={foco === "nome" ? "nome" : foco === "tamanho" ? "tamanho" : undefined}
+        nomeInicial={n ?? ""}
       />
     </main>
   );

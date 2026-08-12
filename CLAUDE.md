@@ -766,6 +766,54 @@ três pontos.
 - **A visão geral avisa o que falta**, na ordem da jornada do §6: primeiro turma,
   depois produto. Cada aviso some sozinho quando a peça existe.
 
+### 5.1.6 Quarta rodada · 12/08/2026
+
+Rodada de densidade e hierarquia, nas duas áreas.
+
+- **Status deixou de ser pílula.** `selo.tsx` virou ponto de 5px mais a palavra, sem fundo,
+  sem borda e sem caixa. Chip colorido em lista de duzentas linhas produzia uma coluna de
+  retângulos que competia com nome e dinheiro. Só `Em atraso` tinge o texto; o resto fica em
+  `ink-2`, para o vermelho continuar significando alguma coisa. Vale em todas as telas, do
+  aluno e da empresa, porque todas passam pelo mesmo componente.
+- **Tamanho subiu para a tela do produto.** O aluno escolhe a peça e o tamanho juntos, num
+  `form method="get"` sem JavaScript, e a personalização ficou só com o nome, dois campos e a
+  prévia. Peça sem bordado pula a personalização e vai direto para a revisão. Nenhuma tela
+  nova: o lápis do tamanho na revisão volta para o produto, o do nome volta para a
+  personalização, os dois já preenchidos.
+- **Carrossel para de foto em foto.** `snap-always` nos dois trilhos da galeria. Com sete
+  fotos, a inércia atravessava três e parava no meio da quarta.
+- **A coluna Pago saiu da lista de pedidos.** Valor menos falta pagar é a mesma informação
+  duas vezes, e as três colunas de dinheiro espremiam nome, produto e tamanho.
+- **`BL` no lugar de `Baby Look` em lista e tabela.** `tamanhoLegivel` devolve "M BL": a
+  coluna fica comparável linha a linha. Por extenso continua onde é título de grupo, no
+  seletor de tamanho e na grade do cadastro. As abas do `.xlsx` **não mudaram**, elas seguem o
+  modelo de papel (§3.8).
+- **Grade e turmas já vêm marcadas.** Produto novo nasce com a grade inteira; a exportação de
+  produção e a de campanha abrem com tudo selecionado. Desmarcar o que não vai é menos
+  trabalho que marcar doze caixas no celular. A rota continua tratando "nada marcado" como
+  tudo, para endereço antigo seguir valendo.
+- **Cartões de cliente e de turma encolheram** (`p-4`, `gap-3`, valor principal em `text-num`).
+  Menos espaço morto, mesma informação.
+- **Parcelas em aberto viraram bloco retrátil**, fechado, com quantidade, total e vencido na
+  linha fechada. Numa campanha são mais de duzentas linhas.
+- **Financeiro por campanha.** `FinanceiroDaTurma` virou `FinanceiroDoEscopo` e serve turma e
+  campanha com o mesmo desenho, trocando só a coluna que filtra. Entrou como aba da E3.
+- **Cliente virou aba no Financeiro, não filtro.** A faixa de abas é "Visão geral" mais uma por
+  escola com pedido, ordenadas pelo que têm a receber. A seção "Escolas" saiu por repetir a
+  navegação. Dentro da escola aparece a lista de campanhas dela, que é o nível seguinte.
+- **Filtro do Financeiro é só data inicial e data final** (`janelaEntre`), atrás de um botão
+  com ícone de funil. A lista de "há quanto tempo" decidia por quem estava olhando: quem
+  fecha o mês quer 1 a 31 de julho, não "últimos 30 dias". Em `/financeiro/receber` o filtro
+  saiu inteiro, o escopo chega pela navegação e sobrou "Ver a empresa inteira".
+- **Produtos do admin em linha compacta**, com miniatura de 40px, grade em texto e a contagem
+  de pedidos no lugar onde ficava o selo de kit.
+
+**Kit removido do produto.** Saíram badge, filtro, rótulo, o formulário, `listarPecas`,
+`vw_kit_publico` e o kit do seed; pedido e revisão passaram a tratar uma peça só.
+`produto.tipo` tem default `'simples'`, então nada quebra sem migration. **A tabela
+`produto_componente` e o enum `tipo_produto` continuam no banco**, e derrubá-los é decisão
+separada, com migration.
+
 **Por que foto na vitrine e SVG no preview** (a combinação é proposital): a foto vende e
 mostra caimento; o SVG garante que o nome apareça sempre na mesma posição, com o mesmo
 tamanho, independente da qualidade da foto que o admin subiu. Precisão onde erro custa caro,

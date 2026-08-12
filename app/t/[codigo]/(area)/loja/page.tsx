@@ -109,11 +109,9 @@ export default async function Loja({ params }: { params: Promise<{ codigo: strin
                     <p className="text-caption text-muted">
                       {!podeComprar(turma, p)
                         ? "Fora de venda no momento"
-                        : p.tipo === "kit"
-                          ? "Kit, mais de uma peça"
-                          : p.exige_nome
-                            ? "Com nome bordado"
-                            : "Sem nome bordado"}
+                        : p.exige_nome
+                          ? "Com nome bordado"
+                          : "Sem nome bordado"}
                     </p>
                   </div>
 

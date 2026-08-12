@@ -194,14 +194,14 @@ export default async function Cliente({
           <Kpi
             rotulo="Recebido"
             valor={reais(cliente.recebido_centavos)}
-            nota={`${pct(cliente.recebido_centavos, cliente.vendido_centavos)}% do vendido`}
+            nota={`${pct(cliente.recebido_centavos, cliente.vendido_centavos)}% Do vendido`}
           />
           <Kpi rotulo="A receber" valor={reais(cliente.a_receber_centavos)} />
           <Kpi
             rotulo="Em atraso"
             valor={reais(cliente.atrasado_centavos)}
             tom={cliente.atrasado_centavos > 0 ? "alerta" : "normal"}
-            nota={cliente.atrasado_centavos > 0 ? "venceu e não foi pago" : "nada vencido"}
+            nota={cliente.atrasado_centavos > 0 ? "Venceu e não foi pago" : "Nada vencido"}
           />
         </Kpis>
       </div>

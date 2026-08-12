@@ -15,6 +15,10 @@ import { Seta, Voltar, X } from "./icones";
  * · **Rolagem nativa com `scroll-snap`.** Arrasta com o dedo, com o trackpad e
  *   com as setas do teclado, sem biblioteca e sem listener de scroll global. O
  *   índice sai da posição de rolagem, não de estado paralelo.
+ * · **Um gesto, uma foto.** `snap-always` obriga o navegador a parar no próximo
+ *   ponto de encaixe, em vez de deixar a inércia atravessar três fotos e parar
+ *   no meio da quarta. Com sete fotos, o carrossel livre passava direto do que a
+ *   pessoa queria olhar e ela tinha que voltar arrastando.
  * · **Contador fora da foto.** Pílula sobreposta suja o enquadramento da peça,
  *   que é justamente o que o aluno veio olhar. Ele vive na linha de baixo.
  * · **Tocar amplia.** O detalhe do bordado e do brasão não se resolve num
@@ -71,8 +75,8 @@ export function Galeria({ imagens, nome }: { imagens: string[]; nome: string }) 
               type="button"
               onClick={() => setAmpliada(i)}
               aria-label={`Ampliar foto ${i + 1} de ${imagens.length}`}
-              className={`shrink-0 cursor-zoom-in snap-start overflow-hidden rounded-xl border
-                border-line bg-surface-2 ${unica ? "w-full" : "w-[88%]"}`}
+              className={`shrink-0 cursor-zoom-in snap-start snap-always overflow-hidden rounded-xl
+                border border-line bg-surface-2 ${unica ? "w-full" : "w-[88%]"}`}
             >
               <img
                 src={imagemUrl(img)}
@@ -271,7 +275,10 @@ function Ampliada({
               overscroll-contain"
           >
             {imagens.map((img, i) => (
-              <div key={img} className="flex w-screen shrink-0 snap-start justify-center px-4">
+              <div
+                key={img}
+                className="flex w-screen shrink-0 snap-start snap-always justify-center px-4"
+              >
                 <img
                   src={imagemUrl(img)}
                   alt={`${nome}, foto ${i + 1} de ${imagens.length}`}

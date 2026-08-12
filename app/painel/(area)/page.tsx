@@ -71,17 +71,15 @@ function Contexto({
     // existe num card.
     partes.push(
       `${campanha.grupos} ${
-        campanha.grupos === 1
-          ? campanha.label_grupo.toLowerCase()
-          : campanha.label_grupo_plural.toLowerCase()
+        campanha.grupos === 1 ? campanha.label_grupo : campanha.label_grupo_plural
       }`,
     );
   }
 
   return (
-    <p className="text-caption leading-relaxed text-muted">
+    <p className="text-caption leading-snug text-muted">
       {partes.join(" · ")}
-      {!campanha && (partes.length ? " · " : "") + "sem campanha"}
+      {!campanha && (partes.length ? " · " : "") + "Sem campanha"}
     </p>
   );
 }
@@ -137,13 +135,13 @@ function CartaoCliente({
      * O lápis fica acima da camada esticada (`z-10`) e continua clicável.
      */
     <li
-      className="entra group relative flex flex-col gap-5 rounded-lg border border-line
-        bg-surface p-5 transition-colors duration-base ease-soft
+      className="entra group relative flex flex-col gap-3 rounded-lg border border-line
+        bg-surface p-4 transition-colors duration-base ease-soft
         focus-within:border-ink-2 hover:border-ink-2 has-[details[open]]:z-30"
       style={{ "--atraso": `${atraso}ms` } as React.CSSProperties}
     >
       <div className="flex items-start justify-between gap-2">
-        <div className="flex min-w-0 flex-col gap-1">
+        <div className="flex min-w-0 flex-col gap-0.5">
           <h2 className="text-h3 leading-snug">
             <Link
               href={`/painel/cliente/${cliente.id}`}
@@ -162,7 +160,7 @@ function CartaoCliente({
             href={editar}
             scroll={false}
             aria-label={`Editar ${cliente.nome}`}
-            className="flex size-9 items-center justify-center rounded-md border
+            className="flex size-8 items-center justify-center rounded-md border
               border-line-strong bg-surface text-ink-2 transition-colors duration-fast ease-soft
               hover:border-ink hover:bg-surface-2 hover:text-ink focus-visible:outline
               focus-visible:outline-2 focus-visible:outline-offset-2
@@ -186,9 +184,9 @@ function CartaoCliente({
         </div>
       </div>
 
-      <div className="mt-auto flex flex-col gap-3">
+      <div className="mt-auto flex flex-col gap-2">
         <div className="flex items-baseline justify-between gap-3">
-          <span data-nums className="text-num-lg font-semibold tracking-tight">
+          <span data-nums className="text-num font-semibold tracking-tight">
             {reais(cliente.recebido_centavos)}
           </span>
           <span data-nums className="text-body-sm text-muted">
@@ -206,7 +204,7 @@ function CartaoCliente({
           {prazo && (
             <>
               {" · "}
-              <span data-nums>até {prazo}</span>
+              <span data-nums>Até {prazo}</span>
             </>
           )}
         </p>
@@ -216,12 +214,12 @@ function CartaoCliente({
         O selo desceu para cá quando o lápis ocupou o canto de cima. Estados
         encerrados ficam próximos do resumo financeiro, sem competir com o nome.
       */}
-      <div className="flex items-baseline justify-between gap-3 border-t border-line pt-3">
-        <p className="text-body-sm">
+      <div className="flex items-baseline justify-between gap-3 border-t border-line pt-2.5">
+        <p className="text-caption">
           {vencido ? (
             <>
               <Valor centavos={cliente.atrasado_centavos} tom="alerta" />{" "}
-              <span className="text-muted">em atraso</span>
+              <span className="text-muted">Em atraso</span>
             </>
           ) : (
             <span className="text-muted">Nada vencido</span>
@@ -342,9 +340,9 @@ export default async function Clientes({
         titulo={vendoArquivados ? "Clientes arquivados" : "Clientes"}
         subtitulo={
           clientes.length > 0
-            ? `${clientes.length} ${clientes.length === 1 ? "cliente" : "clientes"} · ${abertas} ${
-                abertas === 1 ? "campanha aberta" : "campanhas abertas"
-              }${q ? ` · busca por "${q}"` : ""}`
+            ? `${clientes.length} ${clientes.length === 1 ? "Cliente" : "Clientes"} · ${abertas} ${
+                abertas === 1 ? "Campanha aberta" : "Campanhas abertas"
+              }${q ? ` · Busca por "${q}"` : ""}`
             : undefined
         }
         acoes={
@@ -424,14 +422,14 @@ export default async function Clientes({
             <Total rotulo="Recebido" valor={reais(total.recebido)}>
               <Barra parte={total.recebido} total={total.vendido} />
               <Apoio
-                rotulo={`de ${reais(total.vendido)}`}
+                rotulo={`De ${reais(total.vendido)}`}
                 valor={`${pct(total.recebido, total.vendido)}%`}
               />
             </Total>
 
             <Total rotulo="Em atraso" valor={reais(total.atrasado)} tom="alerta">
               <Apoio
-                rotulo="clientes afetados"
+                rotulo="Clientes afetados"
                 valor={`${comAtraso} de ${clientes.length}`}
               />
             </Total>

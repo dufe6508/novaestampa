@@ -33,13 +33,7 @@ export function ExportarCampanhaGaveta({
       <form action={`/exportar/campanha/${campanhaId}`} className="flex flex-1 flex-col">
         <fieldset className="flex flex-1 flex-col gap-3 border-t border-line px-4 py-4">
           <legend className="sr-only">{labelGrupoPlural} para exportar</legend>
-          <div className="flex flex-col gap-1">
-            <h2 className="text-body-sm font-semibold text-ink">Selecione as turmas</h2>
-            <p className="text-caption leading-relaxed text-muted">
-              Cada turma será separada por produto e tamanho. Sem marcar nenhuma, todas as
-              turmas com peças liberadas serão incluídas.
-            </p>
-          </div>
+          <h2 className="text-body-sm font-semibold text-ink">{labelGrupoPlural}</h2>
 
           <ul className="flex flex-col divide-y divide-line overflow-hidden rounded-lg border border-line">
             {turmas.map((turma) => (
@@ -53,6 +47,7 @@ export function ExportarCampanhaGaveta({
                     type="checkbox"
                     name="grupo"
                     value={turma.id}
+                    defaultChecked
                     className="size-4 shrink-0 accent-ink"
                   />
                   <span className="min-w-0 flex-1 truncate text-body-sm font-medium text-ink">

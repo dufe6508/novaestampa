@@ -12,9 +12,11 @@ import { Gaveta } from "./gaveta";
  * a rota devolve o arquivo. Sem estado, sem `onChange`, sem ilha de cliente, e o
  * endereço gerado pode ser guardado e repetido.
  *
- * Nada marcado quer dizer a grade inteira. É o comportamento antigo, que
- * continua sendo o mais comum, e evita um botão de rádio a mais só para dizer
- * "tudo".
+ * A grade toda já vem marcada, e quem separa um tamanho por vez desmarca o
+ * resto. Marcar seis caixas para o caso comum era trabalho à toa, e a lista
+ * vazia ainda exportava tudo, o que fazia a tela dizer uma coisa e a rota fazer
+ * outra. A rota continua tratando "nada marcado" como a grade inteira, para o
+ * endereço antigo seguir funcionando.
  */
 export function ExportarGaveta({
   grupoId,
@@ -49,11 +51,7 @@ export function ExportarGaveta({
         {busca && <input type="hidden" name="q" value={busca} />}
 
         <fieldset className="flex flex-1 flex-col gap-3 border-t border-line px-4 py-4">
-          <legend className="sr-only">Tamanhos</legend>
-          <p className="text-body-sm text-ink-2">
-            Marque os tamanhos que vão para a folha. Sem marcar nenhum, sai a grade inteira,
-            uma aba por tamanho.
-          </p>
+          <legend className="text-body-sm font-semibold text-ink">Tamanhos</legend>
 
           <ul className="grid grid-cols-2 gap-1.5">
             {tamanhos.map((t) => (
@@ -72,6 +70,7 @@ export function ExportarGaveta({
                     type="checkbox"
                     name="tamanho"
                     value={t.tamanho}
+                    defaultChecked
                     className="size-4 shrink-0 accent-ink"
                   />
                   <span className="min-w-0 flex-1 truncate text-body-sm font-medium text-ink">

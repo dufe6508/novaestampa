@@ -620,7 +620,7 @@ export type ResumoProduto = {
 /**
  * Quanto de cada produto foi pedido e quanto disso está pago.
  *
- * `pedidos` e `pecas` são contagens diferentes e as duas importam: kit e
+ * `pedidos` e `pecas` são contagens diferentes e as duas importam:
  * quantidade maior que um descolam as duas, o dinheiro se conta por pedido e o
  * tecido se compra por peça.
  */
@@ -716,7 +716,7 @@ export function filtrar(pedidos: PedidoPainel[], filtro: Filtro, busca?: string)
 /**
  * A lista da oficina, uma linha por peça física.
  *
- * Pedido não serve de unidade aqui: kit vira duas peças, e quem pede duas
+ * Pedido não serve de unidade aqui: quem pede duas
  * camisetas gera duas linhas de corte. É por isso que a aba Produção é
  * construída a partir dos itens, não dos pedidos.
  */
@@ -831,7 +831,6 @@ export type ProdutoCadastro = {
   campanha_id: string;
   nome: string;
   descricao: string | null;
-  tipo: "simples" | "kit";
   classe: ClasseProduto;
   preco_centavos: number;
   tamanhos: string[];
@@ -848,7 +847,7 @@ export type ProdutoCadastro = {
 };
 
 const COLUNAS_PRODUTO =
-  "id,campanha_id,nome,descricao,tipo,classe,preco_centavos,tamanhos,imagens," +
+  "id,campanha_id,nome,descricao,classe,preco_centavos,tamanhos,imagens," +
   "situacao,exige_nome,max_parcelas,max_caracteres_nome,prazo_pedidos,prazo_alteracoes,ordem";
 
 /**
@@ -894,12 +893,14 @@ export const listarProdutosDaCampanha = emCache(
 export type ProdutoPainel = {
   id: string;
   nome: string;
-  tipo: "simples" | "kit";
   preco_centavos: number;
   tamanhos: string[];
+  imagens: string[];
   ativo: boolean;
   situacao: SituacaoProduto;
   classe: ClasseProduto;
+  /** Pedidos ativos deste produto. É o que diz se ele vende ou só existe. */
+  pedidos: number;
   campanha_id: string;
   campanha_nome: string;
   campanha_status: CampanhaResumo["status"];
@@ -909,7 +910,12 @@ export type ProdutoPainel = {
 
 type LinhaProduto = Omit<
   ProdutoPainel,
-  "campanha_id" | "campanha_nome" | "campanha_status" | "cliente_id" | "cliente_nome"
+  | "pedidos"
+  | "campanha_id"
+  | "campanha_nome"
+  | "campanha_status"
+  | "cliente_id"
+  | "cliente_nome"
 > & {
   campanha: {
     id: string;
@@ -934,25 +940,39 @@ export const listarTodosProdutos = emCache(
     let q = db()
       .from("produto")
       .select(
-        "id,nome,tipo,preco_centavos,tamanhos,ativo,situacao,classe," +
+        "id,nome,preco_centavos,tamanhos,imagens,ativo,situacao,classe," +
           "campanha:campanha_id(id,nome,status,cliente:cliente_id(id,nome))",
       )
       .order("nome");
     if (busca?.trim()) q = q.ilike("nome", `%${busca.trim()}%`);
 
     const { data } = await q.returns<LinhaProduto[]>();
+    const linhas = (data ?? []).filter((p) => p.campanha?.cliente);
+    if (linhas.length === 0) return [];
 
-    return (data ?? [])
-      .filter((p) => p.campanha?.cliente)
+    // Segunda viagem, pela mesma razão da lista da campanha: o que a dona quer
+    // saber desta tela é o que vende, e isso é contagem de pedido.
+    const { data: pedidos } = await db()
+      .from("pedido")
+      .select("produto_id")
+      .eq("status", "ativo")
+      .in("produto_id", linhas.map((p) => p.id))
+      .returns<{ produto_id: string }[]>();
+
+    const contagem: Record<string, number> = {};
+    for (const p of pedidos ?? []) contagem[p.produto_id] = (contagem[p.produto_id] ?? 0) + 1;
+
+    return linhas
       .map((p) => ({
         id: p.id,
         nome: p.nome,
-        tipo: p.tipo,
         preco_centavos: p.preco_centavos,
         tamanhos: p.tamanhos ?? [],
+        imagens: p.imagens ?? [],
         ativo: p.ativo,
         situacao: p.situacao,
         classe: p.classe,
+        pedidos: contagem[p.id] ?? 0,
         campanha_id: p.campanha!.id,
         campanha_nome: p.campanha!.nome,
         campanha_status: p.campanha!.status,
